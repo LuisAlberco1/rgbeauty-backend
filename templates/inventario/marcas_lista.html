@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Marcas{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/marcas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Marcas</h1>
+        <p>Administra las marcas utilizadas en el catálogo de productos.</p>
+    </div>
+    <a href="{% url 'inventario:marca_form' %}" class="button button-primary">+ Nueva marca</a>
+</section>
+
+{% if messages %}
+<section class="messages-container">
+    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+</section>
+{% endif %}
+
+<section class="panel">
+    <h2>Catálogo de marcas</h2>
+    <p class="panel-subtitle">Las marcas desactivadas se conservan y no aparecen en los selectores de productos.</p>
+    <form method="get" class="brand-filters">
+        <div class="form-group">
+            <label for="buscar">Buscar marca</label>
+            <input type="search" id="buscar" name="buscar" value="{{ buscar }}" placeholder="Nombre o descripción">
+        </div>
+        <div class="form-group">
+            <label for="estado">Estado</label>
+            <select id="estado" name="estado">
+                <option value="" {% if not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
+                <option value="activo" {% if estado_seleccionado == "activo" %}selected{% endif %}>Activas</option>
+                <option value="inactivo" {% if estado_seleccionado == "inactivo" %}selected{% endif %}>Inactivas</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Buscar</button>
+            <a href="{% url 'inventario:marcas_lista' %}" class="button button-secondary">Limpiar</a>
+        </div>
+    </form>
+</section>
+
+<section class="panel brands-table-panel">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr><th>Marca</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+            {% for marca in marcas %}
+                <tr>
+                    <td>{{ marca.nombre }}</td>
+                    <td>{{ marca.descripcion|default:"—" }}</td>
+                    <td><span class="status-badge {% if marca.activo %}status-active{% else %}status-inactive{% endif %}">{% if marca.activo %}Activa{% else %}Inactiva{% endif %}</span></td>
+                    <td class="actions-cell">
+                        <a href="{% url 'inventario:marca_editar' marca.pk %}">Editar</a>
+                        <form method="post" action="{% url 'inventario:marca_cambiar_estado' marca.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="{% if marca.activo %}button-danger-link{% else %}button-action-link{% endif %}">
+                                {% if marca.activo %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4"><div class="empty-state"><strong>No hay marcas para mostrar</strong><p>No se encontraron marcas con los filtros seleccionados.</p></div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

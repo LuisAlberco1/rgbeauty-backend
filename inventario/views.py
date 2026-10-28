@@ -9,8 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import CategoriaProductoForm, ProductoForm
-from .models import CategoriaProducto, Producto, ProductoPrecio
+from .forms import CategoriaProductoForm, MarcaForm, ProductoForm
+from .models import CategoriaProducto, Marca, Producto, ProductoPrecio
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +187,67 @@ def categoria_cambiar_estado(request, id_categoria):
             f"La categoría {categoria.nombre} fue desactivada. Sus productos y registros se conservaron.",
         )
     return redirect("inventario:categorias_lista")
+
+
+@login_required
+def marcas_lista(request):
+    buscar = request.GET.get("buscar", "").strip()
+    estado = request.GET.get("estado", "").strip()
+    marcas = Marca.objects.all()
+
+    if buscar:
+        marcas = marcas.filter(Q(nombre__icontains=buscar) | Q(descripcion__icontains=buscar))
+    if estado == "activo":
+        marcas = marcas.filter(activo=True)
+    elif estado == "inactivo":
+        marcas = marcas.filter(activo=False)
+
+    return render(request, "inventario/marcas_lista.html", {
+        "marcas": marcas.order_by("nombre"),
+        "buscar": buscar,
+        "estado_seleccionado": estado,
+    })
+
+
+@login_required
+def marca_form(request, id_marca=None):
+    marca = get_object_or_404(Marca, pk=id_marca) if id_marca is not None else None
+
+    if request.method == "POST":
+        form = MarcaForm(request.POST, instance=marca)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    form.save()
+                messages.success(request, "Marca guardada correctamente.")
+                return redirect("inventario:marcas_lista")
+            except IntegrityError:
+                form.add_error("nombre", "Ya existe una marca con ese nombre.")
+    else:
+        form = MarcaForm(instance=marca)
+
+    return render(request, "inventario/marca_form.html", {
+        "form": form,
+        "marca": marca,
+        "titulo": "Editar marca" if marca else "Registrar marca",
+    })
+
+
+@login_required
+@require_POST
+def marca_cambiar_estado(request, id_marca):
+    marca = get_object_or_404(Marca, pk=id_marca)
+    marca.activo = not marca.activo
+    marca.save(update_fields=["activo"])
+
+    if marca.activo:
+        messages.success(request, f"La marca {marca.nombre} fue activada.")
+    else:
+        messages.success(
+            request,
+            f"La marca {marca.nombre} fue desactivada. Sus productos y registros se conservaron.",
+        )
+    return redirect("inventario:marcas_lista")
 
 
 @login_required
