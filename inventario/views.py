@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import ProductoForm
+from .forms import CategoriaProductoForm, ProductoForm
 from .models import CategoriaProducto, Producto, ProductoPrecio
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,73 @@ def producto_desactivar(request, id_producto):
     else:
         messages.info(request, "El producto ya estaba desactivado.")
     return redirect("inventario:productos_lista")
+
+
+@login_required
+def categorias_lista(request):
+    buscar = request.GET.get("buscar", "").strip()
+    estado = request.GET.get("estado", "").strip()
+    categorias = CategoriaProducto.objects.all()
+
+    if buscar:
+        categorias = categorias.filter(
+            Q(nombre__icontains=buscar) | Q(descripcion__icontains=buscar)
+        )
+    if estado == "activo":
+        categorias = categorias.filter(activo=True)
+    elif estado == "inactivo":
+        categorias = categorias.filter(activo=False)
+
+    return render(request, "inventario/categorias_lista.html", {
+        "categorias": categorias.order_by("nombre"),
+        "buscar": buscar,
+        "estado_seleccionado": estado,
+    })
+
+
+@login_required
+def categoria_form(request, id_categoria=None):
+    categoria = (
+        get_object_or_404(CategoriaProducto, pk=id_categoria)
+        if id_categoria is not None
+        else None
+    )
+
+    if request.method == "POST":
+        form = CategoriaProductoForm(request.POST, instance=categoria)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    form.save()
+                messages.success(request, "Categoría guardada correctamente.")
+                return redirect("inventario:categorias_lista")
+            except IntegrityError:
+                form.add_error("nombre", "Ya existe una categoría con ese nombre.")
+    else:
+        form = CategoriaProductoForm(instance=categoria)
+
+    return render(request, "inventario/categoria_form.html", {
+        "form": form,
+        "categoria": categoria,
+        "titulo": "Editar categoría" if categoria else "Registrar categoría",
+    })
+
+
+@login_required
+@require_POST
+def categoria_cambiar_estado(request, id_categoria):
+    categoria = get_object_or_404(CategoriaProducto, pk=id_categoria)
+    categoria.activo = not categoria.activo
+    categoria.save(update_fields=["activo"])
+
+    if categoria.activo:
+        messages.success(request, f"La categoría {categoria.nombre} fue activada.")
+    else:
+        messages.success(
+            request,
+            f"La categoría {categoria.nombre} fue desactivada. Sus productos y registros se conservaron.",
+        )
+    return redirect("inventario:categorias_lista")
 
 
 @login_required

@@ -38,6 +38,12 @@
                     <span>Productos</span>
                 </a>
 
+                <a href="{% url 'inventario:categorias_lista' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'categorias_lista' or request.resolver_match.url_name == 'categoria_form' or request.resolver_match.url_name == 'categoria_editar' %}active{% endif %}">
+                    <span class="nav-icon">▧</span>
+                    <span>Categorías</span>
+                </a>
+
                 <a href="{% url 'inventario:stock_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'stock_lista' %}active{% endif %}">
                     <span class="nav-icon">▦</span>

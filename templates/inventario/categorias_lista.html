@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Categorías{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/categorias.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Categorías</h1>
+        <p>Administra las categorías utilizadas en el catálogo de productos.</p>
+    </div>
+    <a href="{% url 'inventario:categoria_form' %}" class="button button-primary">+ Nueva categoría</a>
+</section>
+
+{% if messages %}
+<section class="messages-container">
+    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+</section>
+{% endif %}
+
+<section class="panel">
+    <h2>Catálogo de categorías</h2>
+    <p class="panel-subtitle">Las categorías desactivadas se conservan y no aparecen en los selectores de productos.</p>
+    <form method="get" class="category-filters">
+        <div class="form-group">
+            <label for="buscar">Buscar categoría</label>
+            <input type="search" id="buscar" name="buscar" value="{{ buscar }}" placeholder="Nombre o descripción">
+        </div>
+        <div class="form-group">
+            <label for="estado">Estado</label>
+            <select id="estado" name="estado">
+                <option value="" {% if not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
+                <option value="activo" {% if estado_seleccionado == "activo" %}selected{% endif %}>Activas</option>
+                <option value="inactivo" {% if estado_seleccionado == "inactivo" %}selected{% endif %}>Inactivas</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Buscar</button>
+            <a href="{% url 'inventario:categorias_lista' %}" class="button button-secondary">Limpiar</a>
+        </div>
+    </form>
+</section>
+
+<section class="panel categories-table-panel">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr><th>Categoría</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+            {% for categoria in categorias %}
+                <tr>
+                    <td>{{ categoria.nombre }}</td>
+                    <td>{{ categoria.descripcion|default:"—" }}</td>
+                    <td><span class="status-badge {% if categoria.activo %}status-active{% else %}status-inactive{% endif %}">{% if categoria.activo %}Activa{% else %}Inactiva{% endif %}</span></td>
+                    <td class="actions-cell">
+                        <a href="{% url 'inventario:categoria_editar' categoria.pk %}">Editar</a>
+                        <form method="post" action="{% url 'inventario:categoria_cambiar_estado' categoria.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="{% if categoria.activo %}button-danger-link{% else %}button-action-link{% endif %}">
+                                {% if categoria.activo %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4"><div class="empty-state"><strong>No hay categorías para mostrar</strong><p>No se encontraron categorías con los filtros seleccionados.</p></div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

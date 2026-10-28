@@ -61,3 +61,32 @@ class ProductoForm(forms.ModelForm):
     def clean_descripcion(self):
         descripcion = self.cleaned_data.get("descripcion")
         return descripcion.strip() if descripcion else descripcion
+
+
+class CategoriaProductoForm(forms.ModelForm):
+    class Meta:
+        model = CategoriaProducto
+        fields = ["nombre", "descripcion"]
+        labels = {
+            "nombre": "Nombre de la categoría",
+            "descripcion": "Descripción",
+        }
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control", "maxlength": "100", "required": True}),
+            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 3, "maxlength": "255"}),
+        }
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data["nombre"].strip()
+        existentes = CategoriaProducto.objects.filter(nombre__iexact=nombre)
+        if self.instance and self.instance.pk:
+            existentes = existentes.exclude(pk=self.instance.pk)
+        if existentes.exists():
+            raise forms.ValidationError("Ya existe una categoría con ese nombre.")
+        if not nombre:
+            raise forms.ValidationError("El nombre de la categoría es obligatorio.")
+        return nombre
+
+    def clean_descripcion(self):
+        descripcion = self.cleaned_data.get("descripcion")
+        return descripcion.strip() if descripcion else descripcion
