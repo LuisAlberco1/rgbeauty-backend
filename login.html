@@ -1,0 +1,103 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión | RG Beauty</title>
+
+    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+</head>
+<body>
+    <main class="login-page">
+        <section class="login-card">
+
+            <div class="login-brand">
+                <div class="login-brand-mark">RG</div>
+                <div>
+                    <h1>RG BEAUTY</h1>
+                    <p>SPA &amp; BEAUTY</p>
+                </div>
+            </div>
+
+            <div class="login-heading">
+                <h2>Bienvenida/o</h2>
+                <p>Ingresa tus credenciales para acceder al sistema.</p>
+            </div>
+
+            {% if next %}
+                {% if user.is_authenticated %}
+                    <div class="login-error">
+                        Tu cuenta no tiene permiso para acceder a esta página.
+                    </div>
+                {% endif %}
+            {% endif %}
+
+
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                    <div class="login-error">
+                        El usuario o la contraseña son incorrectos.
+                        Inténtalo nuevamente.
+                    </div>
+                {% endif %}
+
+                {% if next and user.is_authenticated %}
+                    <div class="login-error">
+                        Tu cuenta no tiene permiso para acceder a esta página.
+                    </div>
+                {% endif %}
+
+                <div class="login-field">
+                    <label for="id_username">Usuario</label>
+                    <input
+                        type="text"
+                        name="username"
+                        id="id_username"
+                        placeholder="Ingresa tu usuario"
+                        autocomplete="username"
+                        required
+                        autofocus
+                    >
+                </div>
+
+                <div class="login-field">
+                    <label for="id_password">Contraseña</label>
+                    <input
+                        type="password"
+                        name="password"
+                        id="id_password"
+                        placeholder="Ingresa tu contraseña"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <button type="submit" class="login-button">
+                    Iniciar sesión
+                </button>
+            </form>
+
+
+            <div class="login-footer">
+                <span class="login-footer-dot"></span>
+                Acceso al sistema de inventario
+            </div>
+
+        </section>
+
+        <p class="login-copyright">
+            RG Beauty · Gestión de inventario
+        </p>
+    </main>
+
+
+
+</body>
+</html>
+
+

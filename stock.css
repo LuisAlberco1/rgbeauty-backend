@@ -1,0 +1,38 @@
+/* ========================================
+   PANTALLA: EXISTENCIAS
+   Estilos exclusivos del módulo de stock
+======================================== */
+
+.stock-filters-panel {
+    margin-top: 20px;
+}
+
+.stock-filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.stock-filters .form-group {
+    margin-bottom: 0;
+}
+
+.stock-table-panel {
+    margin-top: 20px;
+}
+
+.stock-table-heading {
+    margin-bottom: 20px;
+}
+
+.stock-table-heading h2,
+.stock-filters-panel h2 {
+    margin: 0;
+}
+
+@media (max-width: 650px) {
+    .stock-filters {
+        grid-template-columns: 1fr;
+    }
+}

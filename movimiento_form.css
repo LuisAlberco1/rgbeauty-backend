@@ -1,0 +1,141 @@
+/* ========================================
+   PANTALLA: REGISTRO DE MOVIMIENTOS
+   Estilos exclusivos de esta pantalla
+======================================== */
+
+.movement-info-panel,
+.movement-form-panel,
+.movement-records-panel {
+    margin-top: 20px;
+}
+
+.movement-info-panel h2,
+.movement-form-panel h2,
+.movement-records-panel h2 {
+    margin: 0;
+}
+
+.movement-types-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.movement-type-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.movement-type-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    font-size: 23px;
+    font-weight: 600;
+}
+
+.movement-entry-icon {
+    background: var(--pink-light);
+    color: var(--pink-dark);
+}
+
+.movement-exit-icon {
+    background: var(--pink-soft);
+    color: var(--muted);
+}
+
+.movement-type-card h3 {
+    margin: 0 0 6px;
+}
+
+.movement-type-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.movement-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-top: 24px;
+    padding: 40px 24px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--pink-soft);
+}
+
+.movement-placeholder-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--pink-light);
+    color: var(--pink-dark);
+    font-size: 26px;
+}
+
+.movement-placeholder h3 {
+    margin: 16px 0 8px;
+}
+
+.movement-placeholder p {
+    max-width: 560px;
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.placeholder-status {
+    margin-top: 18px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: var(--pink-light);
+    color: var(--pink-dark);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.movement-records-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.movement-record-item {
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.movement-record-item strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.movement-record-item p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+    .movement-types-grid,
+    .movement-records-grid {
+        grid-template-columns: 1fr;
+    }
+}
