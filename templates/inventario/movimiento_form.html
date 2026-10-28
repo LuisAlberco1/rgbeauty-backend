@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Registrar movimiento{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/movimiento_form.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Registrar movimiento</h1>
+        <p>Área preparada para registrar entradas y salidas de productos.</p>
+    </div>
+
+    <a href="{% url 'inventario:movimientos_historial' %}"
+       class="button button-secondary">
+        Ver historial
+    </a>
+</section>
+
+<section class="panel movement-info-panel">
+    <h2>Tipos de movimiento</h2>
+    <p class="panel-subtitle">
+        Los movimientos permiten mantener un registro de las variaciones
+        de existencias del inventario.
+    </p>
+
+    <div class="movement-types-grid">
+        <article class="movement-type-card">
+            <span class="movement-type-icon movement-entry-icon">↗</span>
+            <div>
+                <h3>Entrada</h3>
+                <p>Ingreso de unidades al inventario.</p>
+            </div>
+        </article>
+
+        <article class="movement-type-card">
+            <span class="movement-type-icon movement-exit-icon">↙</span>
+            <div>
+                <h3>Salida</h3>
+                <p>Registro de unidades que salen del inventario.</p>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="panel movement-form-panel">
+    <h2>Área de registro</h2>
+    <p class="panel-subtitle">
+        Espacio reservado para la futura interfaz de registro de movimientos.
+    </p>
+
+    <div class="movement-placeholder">
+        <div class="movement-placeholder-icon">↻</div>
+
+        <h3>Formulario pendiente de implementación</h3>
+
+        <p>
+            Aquí se incorporarán los campos para seleccionar el producto,
+            indicar el tipo de movimiento y la cantidad de unidades,
+            registrar el motivo y mostrar la información del responsable.
+        </p>
+
+        <span class="placeholder-status">
+            Pendiente de implementación
+        </span>
+    </div>
+</section>
+
+<section class="panel movement-records-panel">
+    <h2>Información del registro</h2>
+    <p class="panel-subtitle">
+        Elementos que deberá contemplar la futura implementación.
+    </p>
+
+    <div class="movement-records-grid">
+        <article class="movement-record-item">
+            <strong>Producto</strong>
+            <p>Identificación del artículo involucrado.</p>
+        </article>
+
+        <article class="movement-record-item">
+            <strong>Cantidad</strong>
+            <p>Unidades correspondientes al movimiento.</p>
+        </article>
+
+        <article class="movement-record-item">
+            <strong>Motivo</strong>
+            <p>Justificación de la entrada o salida.</p>
+        </article>
+
+        <article class="movement-record-item">
+            <strong>Fecha y responsable</strong>
+            <p>Información de trazabilidad de la operación.</p>
+        </article>
+    </div>
+</section>
+{% endblock %}

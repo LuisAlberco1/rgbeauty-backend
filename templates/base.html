@@ -1,0 +1,134 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}Inicio{% endblock %} | RG Beauty</title>
+
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-layout">
+
+        <aside class="sidebar">
+            <a class="brand" href="{% url 'inventario:dashboard' %}">
+                <span class="brand-mark">RG</span>
+                <span class="brand-copy">
+                    <strong>RG BEAUTY</strong>
+                    <small>SPA &amp; BEAUTY</small>
+                </span>
+            </a>
+
+            <div class="sidebar-section-label">MENÚ PRINCIPAL</div>
+
+            <nav class="sidebar-nav">
+                <a href="{% url 'inventario:dashboard' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <span class="nav-icon">⌂</span>
+                    <span>Inicio</span>
+                </a>
+
+                <a href="{% url 'inventario:productos_lista' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'productos_lista' %}active{% endif %}">
+                    <span class="nav-icon">▤</span>
+                    <span>Productos</span>
+                </a>
+
+                <a href="{% url 'inventario:stock_lista' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'stock_lista' %}active{% endif %}">
+                    <span class="nav-icon">▦</span>
+                    <span>Existencias</span>
+                </a>
+
+                <a href="{% url 'inventario:movimiento_form' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'movimiento_form' %}active{% endif %}">
+                    <span class="nav-icon">↗</span>
+                    <span>Registrar entrada / salida</span>
+                </a>
+
+                <a href="{% url 'inventario:ajustes_stock' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'ajustes_stock' %}active{% endif %}">
+                    <span class="nav-icon">⚙</span>
+                    <span>Ajustar existencias</span>
+                </a>
+
+                <a href="{% url 'inventario:movimientos_historial' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'movimientos_historial' %}active{% endif %}">
+                    <span class="nav-icon">↻</span>
+                    <span>Historial</span>
+                </a>
+            </nav>
+
+
+            <div class="sidebar-bottom">
+                <div class="sidebar-info">
+                    <span class="sidebar-info-icon">♡</span>
+                    <strong>Inventario centralizado</strong>
+                    <p>Productos, existencias y movimientos en un solo lugar.</p>
+                </div>
+
+                <div class="sidebar-footer">
+                    <span class="status-dot"></span>
+                    Sistema de inventario
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="topbar">
+                <div class="topbar-context">
+                    <span class="topbar-overline">RG BEAUTY SPA</span>
+                    <span class="topbar-subtitle">Gestión de inventario</span>
+                </div>
+
+                <div class="topbar-user">
+                    <span class="user-avatar">
+                        {% if user.is_authenticated %}
+                            {{ user.username|first|upper }}
+                        {% else %}
+                            RG
+                        {% endif %}
+                    </span>
+
+                    <div class="user-details">
+                        <strong>
+                            {% if user.is_authenticated %}
+                                {{ user.username }}
+                            {% else %}
+                                Sesión no iniciada
+                            {% endif %}
+                        </strong>
+                        <small>Panel de administración</small>
+                    </div>
+
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="logout-button">
+                            Cerrar sesión
+                        </button>
+                    </form>
+
+
+
+                </div>
+            </header>
+
+            <section class="page-content">
+                {% block content %}{% endblock %}
+            </section>
+
+            <footer class="page-footer">
+                <span>RG Beauty · Gestión de inventario</span>
+                <span>Proyecto integrado</span>
+            </footer>
+        </main>
+
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

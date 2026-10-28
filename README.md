@@ -74,6 +74,17 @@ Para trabajar en paralelo, cada integrante puede utilizar una base de datos loca
 
 ### 4.1. Clonar el repositorio
 
+Desde PowerShell, ejecutar:
+
+```powershell
+git clone https://github.com/skyiwii/Sistema-RG-Beauty.git
+cd Sistema-RG-Beauty
+```
+
+El repositorio remoto es:
+
+https://github.com/skyiwii/Sistema-RG-Beauty
+
 ### 4.2. Crear el entorno virtual
 
 Dentro de la carpeta del proyecto:
@@ -186,6 +197,27 @@ El esquema de negocio contiene 31 tablas y contempla las siguientes áreas:
 - `movimiento_inventario`
 - `detalle_movimiento`
 - `tipo_movimiento`
+
+**Ventas y pagos**
+- `venta`
+- `detalle_venta`
+- `estado_venta`
+- `metodo_pago`
+
+**Clientes y datos personales**
+- `cliente`
+- `persona`
+- `direccion`
+- `comuna`
+- `region`
+
+**Servicios y reservas**
+- `servicio`
+- `categoria_servicio`
+- `reserva`
+- `estado_reserva`
+- `horario`
+- `horario_usuario`
 
 **Usuarios, roles y permisos del negocio**
 - `usuario`

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Existencias{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/stock.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Existencias</h1>
+        <p>Consulta y supervisa las cantidades disponibles de los productos.</p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card highlight">
+        <div class="stat-label">Productos registrados</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Productos incluidos en el inventario</div>
+    </article>
+
+    <article class="stat-card">
+        <div class="stat-label">Stock disponible</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Unidades totales registradas</div>
+    </article>
+
+    <article class="stat-card alert">
+        <div class="stat-label">Stock bajo</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Productos que requieren reposición</div>
+    </article>
+
+    <article class="stat-card alert">
+        <div class="stat-label">Agotados</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Productos sin unidades disponibles</div>
+    </article>
+</section>
+
+<section class="panel stock-filters-panel">
+    <h2>Consulta de existencias</h2>
+    <p class="panel-subtitle">
+        Área preparada para buscar y filtrar productos del inventario.
+    </p>
+
+    <div class="stock-filters">
+        <div class="form-group">
+            <label for="buscar-producto">Buscar producto</label>
+            <input
+                type="search"
+                id="buscar-producto"
+                placeholder="Nombre o código SKU"
+                disabled
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="estado-stock">Estado del stock</label>
+            <select id="estado-stock" disabled>
+                <option value="">Todos los estados</option>
+                <option value="disponible">Disponible</option>
+                <option value="bajo">Stock bajo</option>
+                <option value="agotado">Agotado</option>
+            </select>
+        </div>
+    </div>
+</section>
+
+<section class="panel stock-table-panel">
+    <div class="stock-table-heading">
+        <div>
+            <h2>Detalle del inventario</h2>
+            <p class="panel-subtitle">
+                Vista general de las existencias por producto.
+            </p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>SKU</th>
+                    <th>Categoría</th>
+                    <th>Stock actual</th>
+                    <th>Stock mínimo</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <strong>No hay existencias para mostrar</strong>
+                            <p>
+                                Los datos de stock aparecerán cuando se
+                                implemente la conexión con el inventario.
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

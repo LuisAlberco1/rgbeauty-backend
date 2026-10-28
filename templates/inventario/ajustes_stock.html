@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Ajustes de stock{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/ajustes.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Ajustes de stock</h1>
+        <p>Interfaz preparada para revisar y corregir diferencias en las existencias.</p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card highlight">
+        <div class="stat-label">Ajustes registrados</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Total de ajustes realizados</div>
+    </article>
+
+    <article class="stat-card">
+        <div class="stat-label">Aumentos de stock</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Ajustes que incrementan existencias</div>
+    </article>
+
+    <article class="stat-card alert">
+        <div class="stat-label">Disminuciones de stock</div>
+        <div class="stat-value">—</div>
+        <div class="stat-description">Ajustes que reducen existencias</div>
+    </article>
+</section>
+
+<section class="panel adjustment-info-panel">
+    <h2>¿Cuándo realizar un ajuste?</h2>
+    <p class="panel-subtitle">
+        Los ajustes permiten representar diferencias detectadas durante
+        un recuento físico, pérdidas o correcciones justificadas.
+    </p>
+
+    <div class="adjustment-notice">
+        <span class="adjustment-notice-icon">i</span>
+        <p>
+            Los cambios de stock deberán contar con un motivo registrado
+            y los permisos correspondientes. La autorización y las
+            validaciones serán implementadas por el equipo responsable.
+        </p>
+    </div>
+</section>
+
+<section class="panel adjustment-form-panel">
+    <h2>Área de registro de ajustes</h2>
+    <p class="panel-subtitle">
+        Espacio reservado para la futura interfaz de ajuste de existencias.
+    </p>
+
+    <div class="adjustment-placeholder">
+        <div class="adjustment-placeholder-icon">▤</div>
+        <h3>Formulario de ajuste pendiente</h3>
+        <p>
+            Aquí se incorporarán los campos para seleccionar el producto,
+            indicar la cantidad que se ajustará y registrar el motivo.
+        </p>
+        <span class="placeholder-status">Pendiente de implementación</span>
+    </div>
+</section>
+
+<section class="panel adjustment-history-panel">
+    <h2>Últimos ajustes</h2>
+    <p class="panel-subtitle">
+        Vista preparada para consultar las correcciones realizadas.
+    </p>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Tipo de ajuste</th>
+                    <th>Variación</th>
+                    <th>Motivo</th>
+                    <th>Responsable</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <strong>No hay ajustes para mostrar</strong>
+                            <p>
+                                Los registros aparecerán cuando se conecten
+                                los datos reales del inventario.
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

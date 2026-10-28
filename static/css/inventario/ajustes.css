@@ -1,0 +1,91 @@
+/* ========================================
+   PANTALLA: AJUSTES DE STOCK
+   Estilos exclusivos de esta pantalla
+======================================== */
+
+.adjustment-info-panel,
+.adjustment-form-panel,
+.adjustment-history-panel {
+    margin-top: 20px;
+}
+
+.adjustment-info-panel h2,
+.adjustment-form-panel h2,
+.adjustment-history-panel h2 {
+    margin: 0;
+}
+
+.adjustment-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--pink-soft);
+}
+
+.adjustment-notice-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--pink-light);
+    color: var(--pink-dark);
+    font-weight: 700;
+}
+
+.adjustment-notice p {
+    margin: 3px 0 0;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+.adjustment-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-top: 24px;
+    padding: 36px 20px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--pink-soft);
+}
+
+.adjustment-placeholder-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--pink-light);
+    color: var(--pink-dark);
+    font-size: 24px;
+}
+
+.adjustment-placeholder h3 {
+    margin: 16px 0 8px;
+}
+
+.adjustment-placeholder p {
+    max-width: 520px;
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.placeholder-status {
+    margin-top: 18px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: var(--pink-light);
+    color: var(--pink-dark);
+    font-size: 12px;
+    font-weight: 600;
+}
