@@ -39,6 +39,15 @@
             </select>
         </div>
         <div class="form-group">
+            <label for="marca">Marca</label>
+            <select id="marca" name="marca">
+                <option value="">Todas las marcas</option>
+                {% for marca in marcas %}
+                <option value="{{ marca.pk }}" {% if marca_seleccionada == marca.pk|stringformat:"s" %}selected{% endif %}>{{ marca.nombre }}{% if not marca.activo %} (inactiva){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
             <label for="estado">Estado</label>
             <select id="estado" name="estado">
                 <option value="" {% if not estado_seleccionado %}selected{% endif %}>Todos los estados</option>

@@ -24,6 +24,7 @@ def dashboard(request):
 def productos_lista(request):
     buscar = request.GET.get("buscar", "").strip()
     categoria_id = request.GET.get("categoria", "").strip()
+    marca_id = request.GET.get("marca", "").strip()
     estado = request.GET.get("estado", "").strip()
 
     productos = Producto.objects.select_related("categoria", "marca").prefetch_related(
@@ -42,17 +43,25 @@ def productos_lista(request):
             productos = productos.filter(categoria_id=int(categoria_id))
         else:
             productos = productos.none()
+    if marca_id:
+        if marca_id.isdigit():
+            productos = productos.filter(marca_id=int(marca_id))
+        else:
+            productos = productos.none()
     if estado == "activo":
         productos = productos.filter(activo=True)
     elif estado == "inactivo":
         productos = productos.filter(activo=False)
 
     categorias = CategoriaProducto.objects.filter(activo=True).order_by("nombre")
+    marcas = Marca.objects.all().order_by("nombre")
     return render(request, "inventario/productos_lista.html", {
         "productos": productos.order_by("nombre"),
         "categorias": categorias,
+        "marcas": marcas,
         "buscar": buscar,
         "categoria_seleccionada": categoria_id,
+        "marca_seleccionada": marca_id,
         "estado_seleccionado": estado,
     })
 

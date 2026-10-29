@@ -1,5 +1,5 @@
 /* RG Beauty - estilos del catálogo de productos */
-.product-filters{display:grid;grid-template-columns:minmax(200px,2fr) minmax(150px,1fr) minmax(140px,1fr) auto;align-items:end;gap:16px;margin-top:24px}
+.product-filters{display:grid;grid-template-columns:minmax(200px,2fr) repeat(3,minmax(140px,1fr)) auto;align-items:end;gap:16px;margin-top:24px}
 .product-filters .form-group{margin-bottom:0}.filter-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.products-table-panel{margin-top:20px}
 .product-filters input,.product-filters select,.product-form input,.product-form select,.product-form textarea{box-sizing:border-box;width:100%;min-height:42px;padding:10px 12px;border:1px solid var(--border,#e5dce2);border-radius:7px;background:var(--surface,#fff);font:inherit;color:inherit}
 .product-filters input:focus,.product-filters select:focus,.product-form input:focus,.product-form select:focus,.product-form textarea:focus{outline:2px solid rgba(142,68,107,.2);border-color:var(--pink-dark,#8e446b)}
