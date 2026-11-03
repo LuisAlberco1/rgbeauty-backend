@@ -5,20 +5,23 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/inventario/movimiento_form.css' %}">
+<link rel="stylesheet" href="{% static 'css/inventario/stock_preview.css' %}">
 {% endblock %}
 
 {% block content %}
 <section class="page-heading">
     <div>
         <h1>Registrar movimiento</h1>
-        <p>Área preparada para registrar entradas y salidas de productos.</p>
+        <p>Registra entradas y salidas de stock con trazabilidad del responsable.</p>
     </div>
-
-    <a href="{% url 'inventario:movimientos_historial' %}"
-       class="button button-secondary">
-        Ver historial
-    </a>
+    <a href="{% url 'inventario:ajustes_stock' %}" class="button button-secondary">Ajustar stock</a>
 </section>
+
+{% if messages %}
+<section class="messages-container">
+    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+</section>
+{% endif %}
 
 <section class="panel movement-info-panel">
     <h2>Tipos de movimiento</h2>
@@ -47,54 +50,44 @@
 </section>
 
 <section class="panel movement-form-panel">
-    <h2>Área de registro</h2>
-    <p class="panel-subtitle">
-        Espacio reservado para la futura interfaz de registro de movimientos.
-    </p>
-
-    <div class="movement-placeholder">
-        <div class="movement-placeholder-icon">↻</div>
-
-        <h3>Formulario pendiente de implementación</h3>
-
-        <p>
-            Aquí se incorporarán los campos para seleccionar el producto,
-            indicar el tipo de movimiento y la cantidad de unidades,
-            registrar el motivo y mostrar la información del responsable.
-        </p>
-
-        <span class="placeholder-status">
-            Pendiente de implementación
-        </span>
-    </div>
+    <h2>Datos del movimiento</h2>
+    <p class="panel-subtitle">La fecha y el responsable se registran automáticamente al guardar.</p>
+    {% if not configuracion_lista %}
+    <div class="message error">Falta configurar un inventario activo, los tipos de movimiento o productos activos. Ejecuta <code>python manage.py seed_stock</code> y revisa el catálogo de productos.</div>
+    {% endif %}
+    {% if not responsable_configurado %}
+    <div class="message error">Tu usuario de Django debe tener un usuario activo con el mismo nombre en la tabla de usuarios del negocio antes de registrar movimientos.</div>
+    {% endif %}
+    <section
+        class="stock-preview"
+        data-stock-preview
+        data-mode="movement"
+        data-stock-url="{% url 'inventario:stock_actual' %}"
+        aria-live="polite"
+    >
+        <h3>Stock del producto</h3>
+        <p data-current-stock>Selecciona un inventario y un producto para consultar sus existencias.</p>
+        <p data-stock-result></p>
+        <p class="stock-preview-status" data-stock-status role="status"></p>
+    </section>
+    <form method="post" class="stock-form" novalidate data-stock-form>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+            <div class="form-group">
+                <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span>*</span>{% endif %}</label>
+                {{ field }}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
+            </div>
+        {% endfor %}
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Registrar movimiento</button>
+        </div>
+    </form>
 </section>
+{% endblock %}
 
-<section class="panel movement-records-panel">
-    <h2>Información del registro</h2>
-    <p class="panel-subtitle">
-        Elementos que deberá contemplar la futura implementación.
-    </p>
-
-    <div class="movement-records-grid">
-        <article class="movement-record-item">
-            <strong>Producto</strong>
-            <p>Identificación del artículo involucrado.</p>
-        </article>
-
-        <article class="movement-record-item">
-            <strong>Cantidad</strong>
-            <p>Unidades correspondientes al movimiento.</p>
-        </article>
-
-        <article class="movement-record-item">
-            <strong>Motivo</strong>
-            <p>Justificación de la entrada o salida.</p>
-        </article>
-
-        <article class="movement-record-item">
-            <strong>Fecha y responsable</strong>
-            <p>Información de trazabilidad de la operación.</p>
-        </article>
-    </div>
-</section>
+{% block extra_js %}
+<script src="{% static 'js/inventario/stock_preview.js' %}" defer></script>
 {% endblock %}

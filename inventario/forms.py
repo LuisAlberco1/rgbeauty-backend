@@ -1,6 +1,13 @@
 from django import forms
-from django.db.models import Q
-from .models import CategoriaProducto, Marca, Producto, ProductoPrecio
+from .models import (
+    CategoriaProducto,
+    Inventario,
+    Marca,
+    Producto,
+    ProductoPrecio,
+    TipoMovimiento,
+)
+from .services import MAX_STOCK
 
 
 class ProductoForm(forms.ModelForm):
@@ -135,3 +142,72 @@ class MarcaForm(forms.ModelForm):
     def clean_descripcion(self):
         descripcion = self.cleaned_data.get("descripcion")
         return descripcion.strip() if descripcion else descripcion
+
+
+class BaseStockForm(forms.Form):
+    inventario = forms.ModelChoiceField(
+        label="Inventario",
+        queryset=Inventario.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "required": True}),
+    )
+    producto = forms.ModelChoiceField(
+        label="Producto",
+        queryset=Producto.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "required": True}),
+    )
+    motivo = forms.CharField(
+        label="Motivo",
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": "form-control", "maxlength": "255", "required": True}),
+    )
+    observacion = forms.CharField(
+        label="Observación",
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["inventario"].queryset = Inventario.objects.filter(activo=True).order_by("nombre")
+        self.fields["producto"].queryset = Producto.objects.filter(activo=True).order_by("nombre")
+
+    def clean_motivo(self):
+        motivo = self.cleaned_data["motivo"].strip()
+        if not motivo:
+            raise forms.ValidationError("El motivo es obligatorio.")
+        return motivo
+
+    def clean_observacion(self):
+        observacion = self.cleaned_data.get("observacion", "").strip()
+        return observacion
+
+
+class MovimientoStockForm(BaseStockForm):
+    tipo_movimiento = forms.ModelChoiceField(
+        label="Tipo de movimiento",
+        queryset=TipoMovimiento.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "required": True}),
+    )
+    cantidad = forms.IntegerField(
+        label="Cantidad de unidades",
+        min_value=1,
+        max_value=MAX_STOCK,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "1", "step": "1", "required": True}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipo_movimiento"].queryset = TipoMovimiento.objects.filter(
+            nombre__in=["Entrada", "Salida"],
+            afecta_stock=True,
+        ).order_by("nombre")
+
+
+class AjusteStockForm(BaseStockForm):
+    cantidad = forms.IntegerField(
+        label="Conteo físico final",
+        min_value=0,
+        max_value=MAX_STOCK,
+        help_text="Ingresa la cantidad real contada; el sistema calculará la diferencia.",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "1", "required": True}),
+    )

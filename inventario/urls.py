@@ -18,6 +18,7 @@ urlpatterns = [
     path("marcas/<int:id_marca>/editar/", views.marca_form, name="marca_editar"),
     path("marcas/<int:id_marca>/estado/", views.marca_cambiar_estado, name="marca_cambiar_estado"),
     path("stock/", views.stock_lista, name="stock_lista"),
+    path("stock/actual/", views.stock_actual, name="stock_actual"),
     path("movimientos/nuevo/", views.movimiento_form, name="movimiento_form"),
     path("ajustes-stock/", views.ajustes_stock, name="ajustes_stock"),
     path("historial/", views.movimientos_historial, name="movimientos_historial"),

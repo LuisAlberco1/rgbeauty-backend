@@ -89,3 +89,86 @@
     font-size: 12px;
     font-weight: 600;
 }
+
+.stock-form {
+    max-width: 850px;
+    margin-top: 24px;
+}
+
+.stock-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 18px;
+}
+
+.stock-form .form-group label {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.stock-form .form-group label span {
+    color: #b42318;
+}
+
+.stock-form input,
+.stock-form select,
+.stock-form textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+}
+
+.stock-form textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+
+.stock-form input:focus,
+.stock-form select:focus,
+.stock-form textarea:focus {
+    outline: 2px solid rgba(142, 68, 107, .2);
+    border-color: var(--pink-dark);
+}
+
+.stock-form .filter-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.form-errors,
+.errorlist {
+    margin: 5px 0 0;
+    padding-left: 18px;
+    color: #b42318;
+}
+
+.message {
+    margin: 12px 0;
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: #f4e8ef;
+    color: #713653;
+}
+
+.message.success {
+    background: #e7f6ec;
+    color: #217a45;
+}
+
+.message.error {
+    background: #fce9e8;
+    color: #b42318;
+}
+
+.message.info {
+    background: #eaf2ff;
+    color: #174ea6;
+}

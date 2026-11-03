@@ -3,14 +3,30 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.db.models import Q, Prefetch
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
-from .forms import CategoriaProductoForm, MarcaForm, ProductoForm
-from .models import CategoriaProducto, Marca, Producto, ProductoPrecio
+from .forms import (
+    AjusteStockForm,
+    CategoriaProductoForm,
+    MarcaForm,
+    MovimientoStockForm,
+    ProductoForm,
+)
+from .models import (
+    CategoriaProducto,
+    Inventario,
+    Marca,
+    Producto,
+    ProductoPrecio,
+    TipoMovimiento,
+    UsuarioNegocio,
+)
+from .services import MovimientoStockError, registrar_movimiento_stock
 
 logger = logging.getLogger(__name__)
 
@@ -265,13 +281,159 @@ def stock_lista(request):
 
 
 @login_required
+@require_GET
+def stock_actual(request):
+    try:
+        inventario_id = int(request.GET.get("inventario", ""))
+        producto_id = int(request.GET.get("producto", ""))
+        if inventario_id <= 0 or producto_id <= 0:
+            raise ValueError
+    except ValueError:
+        return JsonResponse(
+            {"error": "Selecciona un inventario y un producto válidos."},
+            status=400,
+        )
+
+    try:
+        Inventario.objects.only("pk").get(pk=inventario_id, activo=True)
+        Producto.objects.only("pk").get(pk=producto_id, activo=True)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT cantidad_actual
+                FROM stock
+                WHERE id_inventario = %s AND id_producto = %s
+                """,
+                [inventario_id, producto_id],
+            )
+            fila_stock = cursor.fetchone()
+    except (Inventario.DoesNotExist, Producto.DoesNotExist):
+        return JsonResponse(
+            {"error": "El inventario o el producto seleccionado ya no está activo."},
+            status=404,
+        )
+    except DatabaseError:
+        logger.exception("Error consultando stock actual")
+        return JsonResponse(
+            {"error": "No se pudo consultar el stock. Comprueba la conexión y las tablas de MySQL."},
+            status=503,
+        )
+
+    return JsonResponse({"stock": int(fila_stock[0]) if fila_stock else 0})
+
+
+@login_required
 def movimiento_form(request):
-    return render(request, "inventario/movimiento_form.html")
+    configuracion_lista = False
+    responsable_configurado = UsuarioNegocio.objects.filter(
+        nombre_usuario=request.user.get_username(),
+        activo=True,
+    ).exists()
+    if request.method == "POST":
+        form = MovimientoStockForm(request.POST)
+        configuracion_lista = (
+            form.fields["inventario"].queryset.exists()
+            and form.fields["producto"].queryset.exists()
+            and form.fields["tipo_movimiento"].queryset.count() == 2
+        )
+        if form.is_valid():
+            try:
+                resultado = registrar_movimiento_stock(
+                    inventario_id=form.cleaned_data["inventario"].pk,
+                    producto_id=form.cleaned_data["producto"].pk,
+                    tipo=form.cleaned_data["tipo_movimiento"].nombre,
+                    cantidad=form.cleaned_data["cantidad"],
+                    motivo=form.cleaned_data["motivo"],
+                    observacion=form.cleaned_data["observacion"],
+                    nombre_usuario=request.user.get_username(),
+                )
+            except MovimientoStockError as exc:
+                form.add_error(None, str(exc))
+            except DatabaseError:
+                logger.exception("Error registrando movimiento de stock")
+                form.add_error(
+                    None,
+                    "No se pudo registrar el movimiento. Comprueba la conexión y las tablas de MySQL.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Movimiento registrado. Stock actualizado de "
+                    f"{resultado.stock_anterior} a {resultado.stock_nuevo} unidades.",
+                )
+                return redirect("inventario:movimiento_form")
+    else:
+        form = MovimientoStockForm()
+        configuracion_lista = (
+            form.fields["inventario"].queryset.exists()
+            and form.fields["producto"].queryset.exists()
+            and form.fields["tipo_movimiento"].queryset.count() == 2
+        )
+
+    return render(request, "inventario/movimiento_form.html", {
+        "form": form,
+        "configuracion_lista": configuracion_lista,
+        "responsable_configurado": responsable_configurado,
+    })
 
 
 @login_required
 def ajustes_stock(request):
-    return render(request, "inventario/ajustes_stock.html")
+    configuracion_lista = False
+    responsable_configurado = UsuarioNegocio.objects.filter(
+        nombre_usuario=request.user.get_username(),
+        activo=True,
+    ).exists()
+    if request.method == "POST":
+        form = AjusteStockForm(request.POST)
+        configuracion_lista = (
+            form.fields["inventario"].queryset.exists()
+            and form.fields["producto"].queryset.exists()
+            and TipoMovimiento.objects.filter(nombre="Ajuste", afecta_stock=True).exists()
+        )
+        if form.is_valid():
+            try:
+                resultado = registrar_movimiento_stock(
+                    inventario_id=form.cleaned_data["inventario"].pk,
+                    producto_id=form.cleaned_data["producto"].pk,
+                    tipo="Ajuste",
+                    cantidad=form.cleaned_data["cantidad"],
+                    motivo=form.cleaned_data["motivo"],
+                    observacion=form.cleaned_data["observacion"],
+                    nombre_usuario=request.user.get_username(),
+                )
+            except MovimientoStockError as exc:
+                form.add_error(None, str(exc))
+            except DatabaseError:
+                logger.exception("Error registrando ajuste de stock")
+                form.add_error(
+                    None,
+                    "No se pudo registrar el ajuste. Comprueba la conexión y las tablas de MySQL.",
+                )
+            else:
+                if resultado.movimiento is None:
+                    messages.info(request, "El stock ya coincide con el conteo físico; no se registró ningún ajuste.")
+                    return redirect("inventario:ajustes_stock")
+                else:
+                    messages.success(
+                        request,
+                        f"Ajuste registrado. Stock actualizado de "
+                        f"{resultado.stock_anterior} a {resultado.stock_nuevo} unidades.",
+                    )
+                    return redirect("inventario:ajustes_stock")
+    else:
+        form = AjusteStockForm()
+        configuracion_lista = (
+            form.fields["inventario"].queryset.exists()
+            and form.fields["producto"].queryset.exists()
+            and TipoMovimiento.objects.filter(nombre="Ajuste", afecta_stock=True).exists()
+        )
+
+    return render(request, "inventario/ajustes_stock.html", {
+        "form": form,
+        "configuracion_lista": configuracion_lista,
+        "responsable_configurado": responsable_configurado,
+    })
 
 
 @login_required

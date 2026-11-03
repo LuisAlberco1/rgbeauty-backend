@@ -1,0 +1,31 @@
+.stock-preview {
+    max-width: 850px;
+    margin-top: 20px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--pink-soft);
+}
+
+.stock-preview h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.stock-preview p {
+    margin: 5px 0 0;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.stock-preview-status {
+    font-weight: 600;
+}
+
+.stock-preview-status:empty {
+    display: none;
+}
+
+.stock-preview-status.is-error {
+    color: #b42318;
+}
