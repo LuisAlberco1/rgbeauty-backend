@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Mi cuenta{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/cuenta.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Mi cuenta</h1>
+        <p>Consulta y actualiza tus datos de acceso al sistema.</p>
+    </div>
+</section>
+
+<section class="panel account-panel">
+    <div class="account-summary">
+        <div>
+            <span class="account-label">Nombre de usuario</span>
+            <strong>{{ user.username }}</strong>
+        </div>
+        <div>
+            <span class="account-label">Productos registrados por ti</span>
+            <strong>{{ total_productos }}</strong>
+        </div>
+    </div>
+
+    <form method="post" class="account-form" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+        <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Guardar cambios</button>
+            <a href="{% url 'inventario:cambiar_contrasena' %}" class="button button-secondary">Cambiar contraseña</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

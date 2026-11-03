@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from django.db import connection, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from .models import (
@@ -8,6 +8,7 @@ from .models import (
     Inventario,
     MovimientoInventario,
     Producto,
+    Stock,
     TipoMovimiento,
     UsuarioNegocio,
 )
@@ -115,30 +116,12 @@ def registrar_movimiento_stock(
             "Ejecuta el comando de inicialización de inventario."
         ) from exc
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO stock (id_inventario, id_producto, cantidad_actual)
-            VALUES (%s, %s, 0)
-            ON DUPLICATE KEY UPDATE cantidad_actual = cantidad_actual
-            """,
-            [inventario.pk, producto.pk],
-        )
-        cursor.execute(
-            """
-            SELECT cantidad_actual
-            FROM stock
-            WHERE id_inventario = %s AND id_producto = %s
-            FOR UPDATE
-            """,
-            [inventario.pk, producto.pk],
-        )
-        fila_stock = cursor.fetchone()
-
-    if fila_stock is None:
-        raise MovimientoStockError("No se pudo obtener el stock del producto.")
-
-    stock_anterior = int(fila_stock[0])
+    stock, _ = Stock.objects.select_for_update().get_or_create(
+        inventario=inventario,
+        producto=producto,
+        defaults={"cantidad_actual": 0},
+    )
+    stock_anterior = stock.cantidad_actual
     stock_nuevo = calcular_stock_nuevo(tipo, cantidad, stock_anterior)
 
     if stock_nuevo == stock_anterior:
@@ -160,16 +143,7 @@ def registrar_movimiento_stock(
         stock_nuevo=stock_nuevo,
     )
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            UPDATE stock
-            SET cantidad_actual = %s, fecha_actualizacion = %s
-            WHERE id_inventario = %s AND id_producto = %s
-            """,
-            [stock_nuevo, timezone.now(), inventario.pk, producto.pk],
-        )
-        if cursor.rowcount != 1:
-            raise MovimientoStockError("No se pudo actualizar el stock del producto.")
+    stock.cantidad_actual = stock_nuevo
+    stock.save(update_fields=["cantidad_actual", "fecha_actualizacion"])
 
     return ResultadoMovimiento(movimiento, stock_anterior, stock_nuevo)

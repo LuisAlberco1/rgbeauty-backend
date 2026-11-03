@@ -20,22 +20,22 @@
 <section class="stats-grid">
     <article class="stat-card highlight">
         <div class="stat-label">Productos en inventario</div>
-        <div class="stat-value">{% if stock_stats %}{{ stock_stats.0 }}{% else %}—{% endif %}</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.productos }}{% else %}—{% endif %}</div>
         <div class="stat-description">Productos distintos que coinciden con los filtros</div>
     </article>
     <article class="stat-card">
         <div class="stat-label">Stock disponible</div>
-        <div class="stat-value">{% if stock_stats %}{{ stock_stats.1 }}{% else %}—{% endif %}</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.unidades }}{% else %}—{% endif %}</div>
         <div class="stat-description">Unidades en los inventarios filtrados</div>
     </article>
     <article class="stat-card alert">
         <div class="stat-label">Stock bajo</div>
-        <div class="stat-value">{% if stock_stats %}{{ stock_stats.2 }}{% else %}—{% endif %}</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.stock_bajo }}{% else %}—{% endif %}</div>
         <div class="stat-description">Entre 1 y {{ low_stock_threshold }} unidades</div>
     </article>
     <article class="stat-card alert">
         <div class="stat-label">Agotados</div>
-        <div class="stat-value">{% if stock_stats %}{{ stock_stats.3 }}{% else %}—{% endif %}</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.agotados }}{% else %}—{% endif %}</div>
         <div class="stat-description">Productos con stock en cero</div>
     </article>
 </section>
@@ -88,11 +88,11 @@
             <tbody>
                 {% for row in stock_rows %}
                 <tr>
-                    <td>{{ row.producto }}</td>
-                    <td>{{ row.sku }}</td>
-                    <td>{{ row.categoria }}</td>
-                    <td>{{ row.inventario }}</td>
-                    <td>{{ row.stock_actual }}</td>
+                    <td>{{ row.producto.nombre }}</td>
+                    <td>{{ row.producto.sku }}</td>
+                    <td>{{ row.producto.categoria.nombre }}</td>
+                    <td>{{ row.inventario.nombre }}</td>
+                    <td>{{ row.cantidad_actual }}</td>
                     <td>{{ low_stock_threshold }} unidades</td>
                     <td>
                         <span class="status-badge {% if row.estado_stock == 'agotado' %}status-inactive{% elif row.estado_stock == 'bajo' %}status-low{% else %}status-active{% endif %}">

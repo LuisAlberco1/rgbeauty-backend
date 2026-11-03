@@ -15,12 +15,6 @@
     <a href="{% url 'inventario:categoria_form' %}" class="button button-primary">+ Nueva categoría</a>
 </section>
 
-{% if messages %}
-<section class="messages-container">
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-</section>
-{% endif %}
-
 <section class="panel">
     <h2>Catálogo de categorías</h2>
     <p class="panel-subtitle">Las categorías desactivadas se conservan y no aparecen en los selectores de productos.</p>

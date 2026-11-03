@@ -5,9 +5,12 @@ app_name = "inventario"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("cuenta/", views.cuenta, name="cuenta"),
+    path("cuenta/contrasena/", views.cambiar_contrasena, name="cambiar_contrasena"),
     path("productos/", views.productos_lista, name="productos_lista"),
     path("mis-productos/", views.mis_productos, name="mis_productos"),
     path("productos/nuevo/", views.producto_form, name="producto_form"),
+    path("productos/<int:id_producto>/", views.producto_detalle, name="producto_detalle"),
     path("productos/<int:id_producto>/editar/", views.producto_form, name="producto_editar"),
     path("productos/<int:id_producto>/desactivar/", views.producto_desactivar, name="producto_desactivar"),
     path("categorias/", views.categorias_lista, name="categorias_lista"),

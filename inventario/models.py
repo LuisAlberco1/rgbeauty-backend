@@ -103,11 +103,37 @@ class Inventario(models.Model):
 
     class Meta:
         db_table = "inventario"
-        managed = False
         ordering = ["nombre"]
 
     def __str__(self):
         return self.nombre
+
+
+class Stock(models.Model):
+    id_stock = models.AutoField(primary_key=True)
+    inventario = models.ForeignKey(
+        Inventario,
+        on_delete=models.PROTECT,
+        db_column="id_inventario",
+        related_name="existencias",
+    )
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.PROTECT,
+        db_column="id_producto",
+        related_name="existencias",
+    )
+    cantidad_actual = models.PositiveIntegerField(default=0)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "stock"
+        verbose_name = "Existencia"
+        verbose_name_plural = "Existencias"
+        unique_together = (("inventario", "producto"),)
+
+    def __str__(self):
+        return f"{self.producto} - {self.inventario}: {self.cantidad_actual}"
 
 
 class TipoMovimiento(models.Model):
@@ -118,7 +144,6 @@ class TipoMovimiento(models.Model):
 
     class Meta:
         db_table = "tipo_movimiento"
-        managed = False
         ordering = ["nombre"]
 
     def __str__(self):
@@ -138,7 +163,6 @@ class Persona(models.Model):
 
     class Meta:
         db_table = "persona"
-        managed = False
 
 
 class UsuarioNegocio(models.Model):
@@ -157,7 +181,6 @@ class UsuarioNegocio(models.Model):
 
     class Meta:
         db_table = "usuario"
-        managed = False
 
     def __str__(self):
         return self.nombre_usuario
@@ -189,7 +212,6 @@ class MovimientoInventario(models.Model):
 
     class Meta:
         db_table = "movimiento_inventario"
-        managed = False
         ordering = ["-fecha", "-id_movimiento"]
 
 
@@ -213,4 +235,4 @@ class DetalleMovimiento(models.Model):
 
     class Meta:
         db_table = "detalle_movimiento"
-        managed = False
+        

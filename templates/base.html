@@ -15,7 +15,7 @@
     <div class="app-layout">
 
         <aside class="sidebar">
-            <a class="brand" href="{% url 'inventario:dashboard' %}">
+            <a class="brand" href="{% if user.is_authenticated %}{% url 'inventario:dashboard' %}{% else %}{% url 'login' %}{% endif %}">
                 <span class="brand-mark">RG</span>
                 <span class="brand-copy">
                     <strong>RG BEAUTY</strong>
@@ -23,9 +23,16 @@
                 </span>
             </a>
 
+            {% if user.is_authenticated %}
             <div class="sidebar-section-label">MENÚ PRINCIPAL</div>
 
             <nav class="sidebar-nav">
+                <a href="{% url 'inventario:cuenta' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'cuenta' or request.resolver_match.url_name == 'cambiar_contrasena' %}active{% endif %}">
+                    <span class="nav-icon">♙</span>
+                    <span>Mi cuenta</span>
+                </a>
+
                 <a href="{% url 'inventario:dashboard' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                     <span class="nav-icon">⌂</span>
@@ -80,6 +87,14 @@
                     <span>Historial</span>
                 </a>
             </nav>
+            {% else %}
+            <nav class="sidebar-nav">
+                <a href="{% url 'login' %}" class="nav-link">
+                    <span class="nav-icon">↪</span>
+                    <span>Iniciar sesión</span>
+                </a>
+            </nav>
+            {% endif %}
 
 
             <div class="sidebar-bottom">
@@ -123,19 +138,30 @@
                         <small>Panel de administración</small>
                     </div>
 
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'inventario:cuenta' %}" class="account-link">Mi cuenta</a>
                     <form method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
                         <button type="submit" class="logout-button">
                             Cerrar sesión
                         </button>
                     </form>
-
-
-
+                    {% else %}
+                    <a href="{% url 'login' %}" class="button button-primary">Iniciar sesión</a>
+                    {% endif %}
                 </div>
             </header>
 
             <section class="page-content">
+                {% if messages %}
+                <section class="messages-container" aria-label="Notificaciones">
+                    {% for message in messages %}
+                    <div class="message {{ message.tags }}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </section>
+                {% endif %}
                 {% block content %}{% endblock %}
             </section>
 

@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from .models import (
     CategoriaProducto,
     Inventario,
@@ -8,6 +9,35 @@ from .models import (
     TipoMovimiento,
 )
 from .services import LOW_STOCK_THRESHOLD, MAX_STOCK
+
+
+class PerfilForm(forms.ModelForm):
+    class Meta:
+        model = get_user_model()
+        fields = ["first_name", "last_name", "email"]
+        labels = {
+            "first_name": "Nombre",
+            "last_name": "Apellido",
+            "email": "Correo electrónico",
+        }
+        widgets = {
+            "first_name": forms.TextInput(attrs={"autocomplete": "given-name"}),
+            "last_name": forms.TextInput(attrs={"autocomplete": "family-name"}),
+            "email": forms.EmailInput(attrs={"autocomplete": "email"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].required = True
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        user_model = get_user_model()
+        if user_model.objects.filter(email__iexact=email).exclude(
+            pk=self.instance.pk
+        ).exists():
+            raise forms.ValidationError("Este correo ya está en uso.")
+        return email
 
 
 class ProductoForm(forms.ModelForm):

@@ -1,0 +1,9 @@
+.account-panel{max-width:760px;margin-top:20px}
+.account-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:26px}
+.account-summary>div{display:flex;flex-direction:column;gap:4px;padding:15px;border:1px solid var(--border);border-radius:10px;background:var(--pink-soft)}
+.account-label{color:var(--muted);font-size:12px}
+.account-summary strong{font-size:16px}
+.account-form{max-width:560px}
+.account-form small{color:var(--muted);font-size:12px}
+.account-form .filter-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+@media(max-width:560px){.account-summary{grid-template-columns:1fr}.account-form .filter-actions .button{flex:1}}

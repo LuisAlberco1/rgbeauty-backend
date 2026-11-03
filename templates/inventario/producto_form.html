@@ -12,10 +12,6 @@
     <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Volver a productos</a>
 </section>
 
-{% if messages %}
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-{% endif %}
-
 <section class="panel product-form-panel">
     <h2>Información del producto</h2>
     <p class="panel-subtitle">Los campos marcados con * son obligatorios. El SKU debe ser único.</p>

@@ -120,6 +120,29 @@ body {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.login-field input[type="text"],
+.login-field input[type="email"],
+.login-field input[type="password"] {
+    min-height: 48px;
+    padding: 0 14px;
+}
+
+.login-field ul {
+    margin: 7px 0 0;
+    padding-left: 18px;
+    color: var(--danger);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.login-help {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .login-field input:focus {
     border-color: var(--pink);
     box-shadow: 0 0 0 3px rgba(217, 121, 165, 0.14);
@@ -157,6 +180,29 @@ body {
     color: var(--danger);
     font-size: 13px;
     line-height: 1.5;
+}
+
+.login-message {
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border: 1px solid #b9e2c7;
+    border-radius: 9px;
+    background: #effaf2;
+    color: #267345;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.login-switch {
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.login-switch a {
+    color: var(--pink-dark);
+    font-weight: 700;
 }
 
 .login-footer {

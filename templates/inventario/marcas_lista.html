@@ -15,12 +15,6 @@
     <a href="{% url 'inventario:marca_form' %}" class="button button-primary">+ Nueva marca</a>
 </section>
 
-{% if messages %}
-<section class="messages-container">
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-</section>
-{% endif %}
-
 <section class="panel">
     <h2>Catálogo de marcas</h2>
     <p class="panel-subtitle">Las marcas desactivadas se conservan y no aparecen en los selectores de productos.</p>

@@ -257,19 +257,13 @@ En una instalación nueva, las tablas internas de Django se crean mediante el si
 
 ### 6.5. Migraciones y cambios en el modelo
 
-Antes de ejecutar migraciones, el equipo debe identificar qué tablas administra Django y cuáles forman parte del esquema SQL compartido.
-
-En el estado actual del proyecto, el módulo `inventario` no tiene migraciones de modelos de negocio. Las tablas del esquema compartido no deben recrearse automáticamente como si fueran tablas nuevas de Django sin revisar antes su correspondencia con los modelos y las migraciones.
-
-Para una instalación local nueva, una vez importado el esquema de negocio y configurada la conexión, se pueden ejecutar las migraciones de Django para crear las tablas internas del framework:
+El proyecto incluye migraciones para las tablas del inventario y usa Django ORM para acceder a ellas. Primero se debe importar el esquema de negocio indicado arriba y configurar la conexión. Como ese esquema ya contiene algunas tablas del inventario, se debe marcar la migración inicial como aplicada si sus tablas ya existen:
 
 ```powershell
-python manage.py migrate
+python manage.py migrate --fake-initial
 ```
 
-Este procedimiento corresponde a una base de datos nueva y preparada para el proyecto. No se debe asumir que ejecutar migraciones sobre una base existente resolverá automáticamente las diferencias entre el SQL y los modelos.
-
-Cuando se incorporen modelos Django que representen tablas de negocio existentes, será necesario coordinar sus definiciones, las migraciones y el esquema compartido para evitar duplicaciones o alteraciones involuntarias.
+Después, Django ejecutará las migraciones restantes, incluida la actualización de la tabla `stock`. En bases de datos que ya tienen migraciones aplicadas, basta con ejecutar `python manage.py migrate`. No se deben importar nuevamente los scripts SQL sobre una base que ya contiene datos.
 
 ---
 
@@ -316,15 +310,13 @@ Para detener el servidor, presionar `Ctrl + C` en la terminal.
 
 ### 7.4. Crear un administrador de Django
 
-En una instalación nueva, después de aplicar las migraciones:
+En una instalación nueva, después de aplicar las migraciones, crear la cuenta dueña:
 
 ```powershell
 python manage.py createsuperuser
 ```
 
-Seguir las instrucciones de la terminal para crear la cuenta administrativa local.
-
-La cuenta creada por este comando corresponde al sistema de autenticación de Django. No debe confundirse automáticamente con los registros de las tablas de negocio `usuario`, `rol` y `usuario_rol`, cuya integración debe implementarse y verificarse según los requisitos del proyecto.
+La cuenta de Django permite entrar a `/admin/`. Para registrar movimientos también debe existir el usuario de negocio con el mismo nombre de usuario. Se puede crear desde Django Admin, junto con su persona. La dueña puede crear las cuentas de las asistentes desde **Autenticación y autorización > Usuarios**.
 
 ---
 
@@ -627,10 +619,32 @@ python manage.py shell -c "from django.db import connection; connection.ensure_c
 python manage.py migrate
 ```
 
+**Preparar el inventario inicial y sus tipos de movimiento:**
+
+```powershell
+python manage.py seed_stock
+```
+
+El comando es idempotente: crea o actualiza los tipos de movimiento y prepara un inventario activo si aún no existe.
+
+**Crear el grupo con permiso para editar productos:**
+
+```powershell
+python manage.py setup_inventory_permissions
+```
+
+Después, asignar la dueña y las asistentes al grupo **Personal de inventario** desde Django Admin > Autenticación y autorización > Usuarios.
+
 **Crear un administrador de Django:**
 
 ```powershell
 python manage.py createsuperuser
+```
+
+**Ejecutar las pruebas del módulo:**
+
+```powershell
+python manage.py test inventario.tests
 ```
 
 **Iniciar el servidor local:**
@@ -638,6 +652,8 @@ python manage.py createsuperuser
 ```powershell
 python manage.py runserver
 ```
+
+`link_stock_user` es una alternativa por terminal para vincular una cuenta Django con el usuario de negocio; normalmente se puede hacer desde Django Admin. `seed` carga una categoría inicial de ejemplo y no es necesario para el funcionamiento normal. Evita usar `seed --clear` en una base con datos, porque elimina todas las categorías.
 
 **Consultar el estado de Git:**
 
@@ -687,7 +703,7 @@ Este documento es la referencia inicial para instalar el proyecto y comprender s
 
 ## Implementación Integrante 2: CRUD de productos
 
-Se agregó la funcionalidad de productos sobre las tablas MySQL existentes (`producto`, `categoria_producto`, `marca` y `producto_precio`). Los modelos usan `managed = False` para evitar que las migraciones de Django intenten crear o alterar esas tablas existentes.
+Se agregó la funcionalidad de productos sobre las tablas MySQL existentes (`producto`, `categoria_producto`, `marca` y `producto_precio`). Los modelos Django se mantienen sincronizados con esas tablas mediante migraciones; al importar un esquema que ya las contiene se debe seguir el procedimiento `migrate --fake-initial` de la sección 6.5.
 
 ### Archivos implementados/modificados
 
@@ -710,4 +726,4 @@ Se agregó la funcionalidad de productos sobre las tablas MySQL existentes (`pro
 5. Iniciar sesión y abrir `/productos/`.
 6. Verificar que existan categorías activas y marcas activas para poder registrar un producto.
 
-No se agregaron migraciones para las cuatro tablas de negocio porque se asume que ya existen en la base de datos compartida. La conexión real depende de las credenciales del entorno local.
+La conexión a la base real depende de las credenciales configuradas en `.env`.

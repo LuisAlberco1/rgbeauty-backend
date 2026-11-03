@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cambiar contraseña{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inventario/cuenta.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Cambiar contraseña</h1>
+        <p>Confirma tu contraseña actual y elige una nueva.</p>
+    </div>
+    <a href="{% url 'inventario:cuenta' %}" class="button button-secondary">Volver a mi cuenta</a>
+</section>
+
+<section class="panel account-panel">
+    <form method="post" class="account-form" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+        <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small>{{ field.help_text|safe }}</small>{% endif %}
+            {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Actualizar contraseña</button>
+            <a href="{% url 'inventario:cuenta' %}" class="button button-secondary">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

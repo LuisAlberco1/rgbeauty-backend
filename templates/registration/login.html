@@ -25,14 +25,11 @@
                 <p>Ingresa tus credenciales para acceder al sistema.</p>
             </div>
 
-            {% if next %}
-                {% if user.is_authenticated %}
-                    <div class="login-error">
-                        Tu cuenta no tiene permiso para acceder a esta página.
-                    </div>
-                {% endif %}
+            {% if messages %}
+                {% for message in messages %}
+                <div class="login-message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
-
 
             <form method="post" action="{% url 'login' %}">
                 {% csrf_token %}
@@ -41,12 +38,6 @@
                     <div class="login-error">
                         El usuario o la contraseña son incorrectos.
                         Inténtalo nuevamente.
-                    </div>
-                {% endif %}
-
-                {% if next and user.is_authenticated %}
-                    <div class="login-error">
-                        Tu cuenta no tiene permiso para acceder a esta página.
                     </div>
                 {% endif %}
 
@@ -82,7 +73,6 @@
                 </button>
             </form>
 
-
             <div class="login-footer">
                 <span class="login-footer-dot"></span>
                 Acceso al sistema de inventario
@@ -99,5 +89,3 @@
 
 </body>
 </html>
-
-

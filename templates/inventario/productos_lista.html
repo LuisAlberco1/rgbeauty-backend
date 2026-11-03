@@ -22,12 +22,6 @@
     </div>
 </section>
 
-{% if messages %}
-<section class="messages-container">
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-</section>
-{% endif %}
-
 <section class="panel">
     <h2>{% if mis_productos %}Mis productos{% else %}Catálogo compartido{% endif %}</h2>
     <p class="panel-subtitle">Consulta, busca y organiza los productos registrados.</p>
@@ -74,9 +68,9 @@
         <table class="data-table">
             <thead><tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Creado por</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody>
-            {% for producto in productos %}
+            {% for producto in page_obj %}
                 <tr>
-                    <td>{{ producto.nombre }}</td>
+                    <td><a href="{% url 'inventario:producto_detalle' producto.pk %}">{{ producto.nombre }}</a></td>
                     <td>{{ producto.sku }}</td>
                     <td>{{ producto.categoria.nombre }}</td>
                     <td>{{ producto.marca.nombre }}</td>
@@ -88,7 +82,8 @@
                     <td>{% if producto.creado_por %}{{ producto.creado_por.get_username }}{% else %}Sin asignar{% endif %}</td>
                     <td><span class="status-badge {% if producto.activo %}status-active{% else %}status-inactive{% endif %}">{% if producto.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
                     <td class="actions-cell">
-                        {% if user.is_superuser or producto.creado_por_id == user.pk %}
+                        <a href="{% url 'inventario:producto_detalle' producto.pk %}">Ver detalle</a>
+                        {% if user.is_superuser or producto.creado_por_id == user.pk or perms.inventario.change_producto %}
                         <a href="{% url 'inventario:producto_editar' producto.pk %}">Editar</a>
                         {% if producto.activo %}
                         <form method="post" action="{% url 'inventario:producto_desactivar' producto.pk %}" onsubmit="return confirm('¿Deseas quitar este producto del catálogo activo? Se conservará en el historial.');">
@@ -96,7 +91,7 @@
                         </form>
                         {% endif %}
                         {% else %}
-                        <span class="muted-action">Solo el creador puede editar</span>
+                        <span class="muted-action">Solo el creador o personal autorizado puede editar</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -106,5 +101,16 @@
             </tbody>
         </table>
     </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="table-pagination" aria-label="Paginación del catálogo">
+        {% if page_obj.has_previous %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
+        {% endif %}
+    </nav>
+    {% endif %}
 </section>
 {% endblock %}

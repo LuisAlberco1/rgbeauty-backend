@@ -12,9 +12,7 @@
     <a href="{% url 'inventario:categorias_lista' %}" class="button button-secondary">Volver a categorías</a>
 </section>
 
-{% if messages %}
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-{% endif %}
+
 
 <section class="panel category-form-panel">
     <h2>Información de la categoría</h2>

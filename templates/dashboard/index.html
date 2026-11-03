@@ -87,10 +87,10 @@
                 <tbody>
                     {% for alerta in alertas_stock %}
                     <tr>
-                        <td>{{ alerta.producto }} <small>({{ alerta.sku }})</small></td>
-                        <td>{{ alerta.inventario }}</td>
-                        <td>{{ alerta.stock_actual }}</td>
-                        <td>{% if alerta.stock_actual == 0 %}Agotado{% else %}Stock bajo{% endif %}</td>
+                        <td>{{ alerta.producto.nombre }} <small>({{ alerta.producto.sku }})</small></td>
+                        <td>{{ alerta.inventario.nombre }}</td>
+                        <td>{{ alerta.cantidad_actual }}</td>
+                        <td>{% if alerta.cantidad_actual == 0 %}Agotado{% else %}Stock bajo{% endif %}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="4"><div class="empty-state">No hay productos con stock bajo o agotado.</div></td></tr>

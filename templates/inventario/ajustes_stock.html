@@ -17,11 +17,7 @@
     <a href="{% url 'inventario:movimiento_form' %}" class="button button-secondary">Registrar entrada o salida</a>
 </section>
 
-{% if messages %}
-<section class="messages-container">
-    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
-</section>
-{% endif %}
+
 
 <section class="panel adjustment-info-panel">
     <h2>¿Cómo funciona un ajuste?</h2>
