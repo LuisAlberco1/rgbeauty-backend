@@ -1,5 +1,5 @@
 from django.db import models
-
+ 
 
 class CategoriaProducto(models.Model):
     """Modelo de lectura/escritura para la tabla existente categoria_producto."""
