@@ -439,3 +439,4 @@ def ajustes_stock(request):
 @login_required
 def movimientos_historial(request):
     return render(request, "inventario/movimientos_historial.html")
+ 
