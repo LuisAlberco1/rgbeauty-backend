@@ -211,3 +211,4 @@ class AjusteStockForm(BaseStockForm):
         help_text="Ingresa la cantidad real contada; el sistema calculará la diferencia.",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "1", "required": True}),
     )
+ 
