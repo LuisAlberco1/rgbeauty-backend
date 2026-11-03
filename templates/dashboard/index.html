@@ -10,113 +10,66 @@
     </div>
 </div>
 
+{% if dashboard_error %}<div class="message error">{{ dashboard_error }}</div>{% endif %}
+
 <section class="stats-grid">
     <article class="stat-card highlight">
-        <div class="stat-label">Productos registrados</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Productos activos en el catálogo</div>
+        <div class="stat-label">Productos activos</div>
+        <div class="stat-value">{% if productos_activos != None %}{{ productos_activos }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Productos del catálogo en inventarios activos</div>
     </article>
-
     <article class="stat-card">
         <div class="stat-label">Unidades en stock</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Existencias disponibles</div>
+        <div class="stat-value">{% if unidades_stock != None %}{{ unidades_stock }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Existencias registradas en inventarios activos</div>
     </article>
-
     <article class="stat-card alert">
         <div class="stat-label">Stock bajo</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Productos bajo su mínimo definido</div>
+        <div class="stat-value">{% if productos_stock_bajo != None %}{{ productos_stock_bajo }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Entre 1 y {{ low_stock_threshold }} unidades</div>
     </article>
-
     <article class="stat-card alert">
         <div class="stat-label">Productos agotados</div>
-        <div class="stat-value">—</div>
+        <div class="stat-value">{% if productos_agotados != None %}{{ productos_agotados }}{% else %}—{% endif %}</div>
         <div class="stat-description">Productos con stock en cero</div>
     </article>
 </section>
 
 <h2 class="section-title">Acciones rápidas</h2>
-
 <section class="content-grid">
     <div class="panel">
         <h3>Gestión de inventario</h3>
-        <p class="panel-subtitle">
-            Accede a las operaciones principales del sistema.
-        </p>
-
-        
+        <p class="panel-subtitle">Accede a las operaciones principales del sistema.</p>
         <div class="action-list">
-            <a class="action-link"
-            href="{% url 'inventario:producto_form' %}">
-                <span>
-                    <strong>+ Nuevo producto</strong>
-                    <small>Registrar un producto en el catálogo.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:producto_form' %}">
+                <span><strong>+ Nuevo producto</strong><small>Registrar un producto en el catálogo.</small></span>
                 <span class="action-arrow">→</span>
             </a>
-
-            <a class="action-link"
-            href="{% url 'inventario:productos_lista' %}">
-                <span>
-                    <strong>Productos</strong>
-                    <small>Consultar y administrar el catálogo.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:productos_lista' %}">
+                <span><strong>Productos</strong><small>Consultar y administrar el catálogo.</small></span>
                 <span class="action-arrow">→</span>
             </a>
-
-            <a class="action-link"
-            href="{% url 'inventario:stock_lista' %}">
-                <span>
-                    <strong>Existencias</strong>
-                    <small>Consultar las cantidades disponibles.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:stock_lista' %}">
+                <span><strong>Existencias</strong><small>Consultar cantidades y alertas de stock.</small></span>
                 <span class="action-arrow">→</span>
             </a>
-
-            <a class="action-link"
-            href="{% url 'inventario:movimientos_historial' %}">
-                <span>
-                    <strong>Historial de movimientos</strong>
-                    <small>Revisar las operaciones registradas.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:movimientos_historial' %}">
+                <span><strong>Historial de movimientos</strong><small>Revisar operaciones con filtros.</small></span>
                 <span class="action-arrow">→</span>
             </a>
         </div>
-
     </div>
 
     <div class="panel">
         <h3>Operaciones de stock</h3>
-        <p class="panel-subtitle">
-            Accesos a las pantallas de gestión de existencias.
-        </p>
-
+        <p class="panel-subtitle">Accesos a las pantallas de gestión de existencias.</p>
         <div class="action-list">
-            <a class="action-link"
-               href="{% url 'inventario:movimiento_form' %}">
-                <span>
-                    <strong>Registrar entrada</strong>
-                    <small>Acceder al registro de movimientos.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:movimiento_form' %}">
+                <span><strong>Registrar entrada o salida</strong><small>Registrar cambios en las existencias.</small></span>
                 <span class="action-arrow">↗</span>
             </a>
-
-            <a class="action-link"
-               href="{% url 'inventario:movimiento_form' %}">
-                <span>
-                    <strong>Registrar salida</strong>
-                    <small>Acceder al registro de movimientos.</small>
-                </span>
-                <span class="action-arrow">↗</span>
-            </a>
-
-            <a class="action-link"
-               href="{% url 'inventario:ajustes_stock' %}">
-                <span>
-                    <strong>Ajustar existencias</strong>
-                    <small>Acceder a la pantalla de ajustes.</small>
-                </span>
+            <a class="action-link" href="{% url 'inventario:ajustes_stock' %}">
+                <span><strong>Ajustar existencias</strong><small>Corregir el stock desde un conteo físico.</small></span>
                 <span class="action-arrow">↗</span>
             </a>
         </div>
@@ -124,33 +77,55 @@
 </section>
 
 <h2 class="section-title">Seguimiento del inventario</h2>
-
 <section class="content-grid">
     <div class="panel">
         <h3>Alertas de inventario</h3>
-        <p class="panel-subtitle">
-            Productos que requieren revisión.
-        </p>
-
-        <div class="empty-state">
-            Las alertas estarán disponibles cuando se conecten los datos del inventario.
+        <p class="panel-subtitle">Productos con {{ low_stock_threshold }} unidades o menos en inventarios activos.</p>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead><tr><th>Producto</th><th>Inventario</th><th>Stock</th><th>Estado</th></tr></thead>
+                <tbody>
+                    {% for alerta in alertas_stock %}
+                    <tr>
+                        <td>{{ alerta.producto }} <small>({{ alerta.sku }})</small></td>
+                        <td>{{ alerta.inventario }}</td>
+                        <td>{{ alerta.stock_actual }}</td>
+                        <td>{% if alerta.stock_actual == 0 %}Agotado{% else %}Stock bajo{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4"><div class="empty-state">No hay productos con stock bajo o agotado.</div></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        <a class="button button-secondary" href="{% url 'inventario:stock_lista' %}">Ver existencias</a>
     </div>
 
     <div class="panel">
         <h3>Movimientos recientes</h3>
-        <p class="panel-subtitle">
-            Últimas operaciones registradas.
-        </p>
-
-        <div class="empty-state">
-            Los movimientos aparecerán cuando exista información real.
+        <p class="panel-subtitle">Últimas operaciones registradas.</p>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cambio</th></tr></thead>
+                <tbody>
+                    {% for detalle in movimientos_recientes %}
+                    <tr>
+                        <td>{{ detalle.movimiento.fecha|date:"d/m/Y H:i" }}</td>
+                        <td>{{ detalle.producto.nombre }}</td>
+                        <td>{{ detalle.movimiento.tipo_movimiento.nombre }}</td>
+                        <td>
+                            {% if detalle.movimiento.tipo_movimiento.nombre == "Entrada" %}+{{ detalle.cantidad }}
+                            {% elif detalle.movimiento.tipo_movimiento.nombre == "Salida" %}-{{ detalle.cantidad }}
+                            {% else %}{{ detalle.stock_anterior }} → {{ detalle.stock_nuevo }}{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4"><div class="empty-state">Aún no hay movimientos registrados.</div></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        <a class="button button-secondary"
-           href="{% url 'inventario:movimientos_historial' %}">
-            Ver historial
-        </a>
+        <a class="button button-secondary" href="{% url 'inventario:movimientos_historial' %}">Ver historial</a>
     </div>
 </section>
 {% endblock %}

@@ -11,85 +11,61 @@
 <section class="page-heading">
     <div>
         <h1>Historial de movimientos</h1>
-        <p>Consulta los movimientos registrados en el inventario de RG Beauty.</p>
+        <p>Consulta las operaciones registradas en el inventario de RG Beauty.</p>
     </div>
 </section>
+
+{% if error %}<div class="message error">{{ error }}</div>{% endif %}
+{% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
 
 <section class="stats-grid">
     <article class="stat-card highlight">
         <div class="stat-label">Movimientos registrados</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Total de operaciones del inventario</div>
+        <div class="stat-value">{% if total_movimientos != None %}{{ total_movimientos }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Operaciones que coinciden con los filtros</div>
     </article>
-
     <article class="stat-card">
         <div class="stat-label">Entradas</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Movimientos de ingreso de unidades</div>
+        <div class="stat-value">{% if entradas != None %}{{ entradas }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Ingresos de unidades</div>
     </article>
-
     <article class="stat-card">
         <div class="stat-label">Salidas</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Movimientos de egreso de unidades</div>
+        <div class="stat-value">{% if salidas != None %}{{ salidas }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Egresos de unidades</div>
     </article>
-
     <article class="stat-card">
         <div class="stat-label">Ajustes</div>
-        <div class="stat-value">—</div>
+        <div class="stat-value">{% if ajustes != None %}{{ ajustes }}{% else %}—{% endif %}</div>
         <div class="stat-description">Correcciones de existencias</div>
     </article>
 </section>
 
 <section class="panel history-filters-panel">
     <h2>Consultar movimientos</h2>
-    <p class="panel-subtitle">
-        Espacio preparado para filtrar el historial de operaciones.
-    </p>
-
-    <div class="history-filters">
+    <p class="panel-subtitle">Filtra por producto, tipo de movimiento y rango de fechas.</p>
+    <form method="get" class="history-filters">
+        {% for field in form %}
         <div class="form-group">
-            <label for="buscar-movimiento">Buscar producto</label>
-            <input
-                type="search"
-                id="buscar-movimiento"
-                placeholder="Nombre o código SKU"
-                disabled
-            >
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
         </div>
-
-        <div class="form-group">
-            <label for="tipo-movimiento">Tipo de movimiento</label>
-            <select id="tipo-movimiento" disabled>
-                <option value="">Todos los movimientos</option>
-                <option value="entrada">Entrada</option>
-                <option value="salida">Salida</option>
-                <option value="ajuste">Ajuste</option>
-            </select>
+        {% endfor %}
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Filtrar</button>
+            <a href="{% url 'inventario:movimientos_historial' %}" class="button button-secondary">Limpiar</a>
         </div>
-
-        <div class="form-group">
-            <label for="fecha-desde">Desde</label>
-            <input type="date" id="fecha-desde" disabled>
-        </div>
-
-        <div class="form-group">
-            <label for="fecha-hasta">Hasta</label>
-            <input type="date" id="fecha-hasta" disabled>
-        </div>
-    </div>
+    </form>
 </section>
 
 <section class="panel history-table-panel">
     <div class="history-table-heading">
         <div>
             <h2>Registro de operaciones</h2>
-            <p class="panel-subtitle">
-                Detalle de las entradas, salidas y ajustes del inventario.
-            </p>
+            <p class="panel-subtitle">La cantidad muestra el cambio aplicado; los ajustes muestran el stock anterior y el nuevo.</p>
         </div>
     </div>
-
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -97,26 +73,48 @@
                     <th>Fecha y hora</th>
                     <th>Producto</th>
                     <th>Tipo</th>
-                    <th>Cantidad</th>
+                    <th>Cambio de stock</th>
                     <th>Motivo</th>
                     <th>Usuario responsable</th>
                 </tr>
             </thead>
-
             <tbody>
+                {% for detalle in page_obj %}
+                <tr>
+                    <td>{{ detalle.movimiento.fecha|date:"d/m/Y H:i" }}</td>
+                    <td>{{ detalle.producto.nombre }} <small>({{ detalle.producto.sku }})</small></td>
+                    <td>{{ detalle.movimiento.tipo_movimiento.nombre }}</td>
+                    <td>
+                        {% if detalle.movimiento.tipo_movimiento.nombre == "Entrada" %}+{{ detalle.cantidad }}
+                        {% elif detalle.movimiento.tipo_movimiento.nombre == "Salida" %}-{{ detalle.cantidad }}
+                        {% else %}{{ detalle.stock_anterior }} → {{ detalle.stock_nuevo }}{% endif %}
+                    </td>
+                    <td>{{ detalle.movimiento.motivo }}</td>
+                    <td>{{ detalle.movimiento.usuario.nombre_usuario }}</td>
+                </tr>
+                {% empty %}
                 <tr>
                     <td colspan="6">
                         <div class="empty-state">
                             <strong>No hay movimientos para mostrar</strong>
-                            <p>
-                                El historial aparecerá cuando se conecten
-                                los registros reales del inventario.
-                            </p>
+                            <p>No se encontraron movimientos para los filtros seleccionados.</p>
                         </div>
                     </td>
                 </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
+    {% if page_obj and page_obj.paginator.num_pages > 1 %}
+    <nav class="table-pagination" aria-label="Paginación del historial">
+        {% if page_obj.has_previous %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
+        {% endif %}
+    </nav>
+    {% endif %}
 </section>
 {% endblock %}

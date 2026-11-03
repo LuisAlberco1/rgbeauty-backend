@@ -1,8 +1,10 @@
 import logging
+import math
 from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.db.models import Q, Prefetch
 from django.http import JsonResponse
@@ -13,27 +15,147 @@ from django.views.decorators.http import require_GET, require_POST
 from .forms import (
     AjusteStockForm,
     CategoriaProductoForm,
+    ExistenciasFiltroForm,
+    HistorialFiltroForm,
     MarcaForm,
     MovimientoStockForm,
     ProductoForm,
 )
 from .models import (
     CategoriaProducto,
+    DetalleMovimiento,
     Inventario,
     Marca,
+    MovimientoInventario,
     Producto,
     ProductoPrecio,
     TipoMovimiento,
     UsuarioNegocio,
 )
-from .services import MovimientoStockError, registrar_movimiento_stock
+from .services import (
+    LOW_STOCK_THRESHOLD,
+    MovimientoStockError,
+    clasificar_stock,
+    registrar_movimiento_stock,
+)
 
 logger = logging.getLogger(__name__)
+
+STOCK_FROM_SQL = """
+    FROM producto p
+    INNER JOIN categoria_producto c ON c.id_categoria_producto = p.id_categoria_producto
+    INNER JOIN inventario i ON i.activo = 1
+    LEFT JOIN stock s
+        ON s.id_inventario = i.id_inventario
+        AND s.id_producto = p.id_producto
+"""
+
+
+def _stock_filter_sql(form):
+    conditions = ["p.activo = 1", "i.activo = 1"]
+    params = []
+    search = form.cleaned_data["buscar"]
+    inventory = form.cleaned_data["inventario"]
+    state = form.cleaned_data["estado"]
+
+    if search:
+        conditions.append("(p.nombre LIKE %s OR p.sku LIKE %s)")
+        search_pattern = f"%{search}%"
+        params.extend([search_pattern, search_pattern])
+    if inventory:
+        conditions.append("i.id_inventario = %s")
+        params.append(inventory.pk)
+    if state == "agotado":
+        conditions.append("COALESCE(s.cantidad_actual, 0) = 0")
+    elif state == "bajo":
+        conditions.append("COALESCE(s.cantidad_actual, 0) BETWEEN 1 AND %s")
+        params.append(LOW_STOCK_THRESHOLD)
+    elif state == "disponible":
+        conditions.append("COALESCE(s.cantidad_actual, 0) > %s")
+        params.append(LOW_STOCK_THRESHOLD)
+
+    return " AND ".join(conditions), params
+
+
+def _dict_rows(cursor):
+    columns = [column[0] for column in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 @login_required
 def dashboard(request):
-    return render(request, "dashboard/index.html")
+    dashboard_error = None
+    stats = None
+    alertas_stock = []
+    movimientos_recientes = []
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    COUNT(DISTINCT p.id_producto) AS productos_activos,
+                    COALESCE(SUM(COALESCE(s.cantidad_actual, 0)), 0) AS unidades_stock,
+                    COALESCE(SUM(CASE
+                        WHEN COALESCE(s.cantidad_actual, 0) BETWEEN 1 AND %s
+                        THEN 1 ELSE 0
+                    END), 0) AS productos_stock_bajo,
+                    COALESCE(SUM(CASE
+                        WHEN COALESCE(s.cantidad_actual, 0) = 0
+                        THEN 1 ELSE 0
+                    END), 0) AS productos_agotados
+                {STOCK_FROM_SQL}
+                WHERE p.activo = 1 AND i.activo = 1
+                """,
+                [LOW_STOCK_THRESHOLD],
+            )
+            stats = cursor.fetchone()
+            cursor.execute(
+                f"""
+                SELECT
+                    p.nombre AS producto,
+                    p.sku AS sku,
+                    i.nombre AS inventario,
+                    COALESCE(s.cantidad_actual, 0) AS stock_actual
+                {STOCK_FROM_SQL}
+                WHERE p.activo = 1
+                    AND i.activo = 1
+                    AND COALESCE(s.cantidad_actual, 0) <= %s
+                ORDER BY COALESCE(s.cantidad_actual, 0), p.nombre, i.nombre
+                LIMIT 5
+                """,
+                [LOW_STOCK_THRESHOLD],
+            )
+            alertas_stock = _dict_rows(cursor)
+
+        movimientos_recientes = list(
+            DetalleMovimiento.objects.select_related(
+                "producto",
+                "movimiento__tipo_movimiento",
+            ).order_by(
+                "-movimiento__fecha",
+                "-movimiento__id_movimiento",
+                "-id_detalle_movimiento",
+            )[:5]
+        )
+    except DatabaseError:
+        logger.exception("Error cargando los indicadores del dashboard")
+        dashboard_error = (
+            "No se pudieron cargar los datos del inventario. "
+            "Comprueba la conexión y las tablas de MySQL."
+        )
+
+    context = {
+        "dashboard_error": dashboard_error,
+        "productos_activos": stats[0] if stats else None,
+        "unidades_stock": stats[1] if stats else None,
+        "productos_stock_bajo": stats[2] or 0 if stats else None,
+        "productos_agotados": stats[3] or 0 if stats else None,
+        "low_stock_threshold": LOW_STOCK_THRESHOLD,
+        "alertas_stock": alertas_stock,
+        "movimientos_recientes": movimientos_recientes,
+    }
+    return render(request, "dashboard/index.html", context)
 
 
 @login_required
@@ -277,7 +399,86 @@ def marca_cambiar_estado(request, id_marca):
 
 @login_required
 def stock_lista(request):
-    return render(request, "inventario/stock_lista.html")
+    form = ExistenciasFiltroForm(request.GET)
+    stock_rows = []
+    stock_stats = None
+    error = None
+    current_page = 1
+    total_pages = 1
+
+    try:
+        if form.is_valid():
+            where_sql, params = _stock_filter_sql(form)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT
+                        COUNT(DISTINCT p.id_producto) AS productos,
+                        COALESCE(SUM(COALESCE(s.cantidad_actual, 0)), 0) AS unidades,
+                        COALESCE(SUM(CASE
+                            WHEN COALESCE(s.cantidad_actual, 0) BETWEEN 1 AND %s
+                            THEN 1 ELSE 0
+                        END), 0) AS stock_bajo,
+                        COALESCE(SUM(CASE
+                            WHEN COALESCE(s.cantidad_actual, 0) = 0
+                            THEN 1 ELSE 0
+                        END), 0) AS agotados,
+                        COUNT(*) AS total_filas
+                    {STOCK_FROM_SQL}
+                    WHERE {where_sql}
+                    """,
+                    [LOW_STOCK_THRESHOLD, *params],
+                )
+                stock_stats = cursor.fetchone()
+                total_rows = stock_stats[4] or 0
+                total_pages = max(1, math.ceil(total_rows / 25))
+                try:
+                    current_page = max(1, int(request.GET.get("page", "1")))
+                except (TypeError, ValueError):
+                    current_page = 1
+                current_page = min(current_page, total_pages)
+                cursor.execute(
+                    f"""
+                    SELECT
+                        p.id_producto AS producto_id,
+                        p.nombre AS producto,
+                        p.sku AS sku,
+                        c.nombre AS categoria,
+                        i.nombre AS inventario,
+                        COALESCE(s.cantidad_actual, 0) AS stock_actual
+                    {STOCK_FROM_SQL}
+                    WHERE {where_sql}
+                    ORDER BY i.nombre, p.nombre
+                    LIMIT %s OFFSET %s
+                    """,
+                    [
+                        *params,
+                        25,
+                        (current_page - 1) * 25,
+                    ],
+                )
+                stock_rows = _dict_rows(cursor)
+                for row in stock_rows:
+                    row["estado_stock"] = clasificar_stock(row["stock_actual"])
+    except DatabaseError:
+        logger.exception("Error consultando las existencias")
+        error = (
+            "No se pudieron consultar las existencias. "
+            "Comprueba la conexión y las tablas de MySQL."
+        )
+
+    filter_params = request.GET.copy()
+    filter_params.pop("page", None)
+    return render(request, "inventario/stock_lista.html", {
+        "form": form,
+        "stock_rows": stock_rows,
+        "stock_stats": stock_stats,
+        "error": error,
+        "low_stock_threshold": LOW_STOCK_THRESHOLD,
+        "current_page": current_page,
+        "total_pages": total_pages,
+        "filter_query": filter_params.urlencode(),
+    })
 
 
 @login_required
@@ -438,5 +639,65 @@ def ajustes_stock(request):
 
 @login_required
 def movimientos_historial(request):
-    return render(request, "inventario/movimientos_historial.html")
+    form = HistorialFiltroForm(request.GET)
+    error = None
+    page_obj = None
+    total_movimientos = entradas = salidas = ajustes = None
+
+    try:
+        if form.is_valid():
+            movimientos = MovimientoInventario.objects.all()
+            producto = form.cleaned_data["producto"]
+            tipo = form.cleaned_data["tipo"]
+            desde = form.cleaned_data["desde"]
+            hasta = form.cleaned_data["hasta"]
+
+            if producto:
+                movimientos = movimientos.filter(detalles__producto=producto)
+            if tipo:
+                movimientos = movimientos.filter(tipo_movimiento__nombre=tipo)
+            if desde:
+                movimientos = movimientos.filter(fecha__date__gte=desde)
+            if hasta:
+                movimientos = movimientos.filter(fecha__date__lte=hasta)
+            movimientos = movimientos.distinct()
+
+            total_movimientos = movimientos.count()
+            entradas = movimientos.filter(tipo_movimiento__nombre="Entrada").count()
+            salidas = movimientos.filter(tipo_movimiento__nombre="Salida").count()
+            ajustes = movimientos.filter(tipo_movimiento__nombre="Ajuste").count()
+
+            detalles = DetalleMovimiento.objects.filter(movimiento__in=movimientos)
+            if producto:
+                detalles = detalles.filter(producto=producto)
+            detalles = detalles.select_related(
+                "producto",
+                "movimiento__inventario",
+                "movimiento__tipo_movimiento",
+                "movimiento__usuario__persona",
+            ).order_by(
+                "-movimiento__fecha",
+                "-movimiento__id_movimiento",
+                "-id_detalle_movimiento",
+            )
+            page_obj = Paginator(detalles, 25).get_page(request.GET.get("page", 1))
+    except DatabaseError:
+        logger.exception("Error consultando el historial de movimientos")
+        error = (
+            "No se pudo consultar el historial. "
+            "Comprueba la conexión y las tablas de MySQL."
+        )
+
+    filter_params = request.GET.copy()
+    filter_params.pop("page", None)
+    return render(request, "inventario/movimientos_historial.html", {
+        "form": form,
+        "error": error,
+        "page_obj": page_obj,
+        "total_movimientos": total_movimientos,
+        "entradas": entradas,
+        "salidas": salidas,
+        "ajustes": ajustes,
+        "filter_query": filter_params.urlencode(),
+    })
  

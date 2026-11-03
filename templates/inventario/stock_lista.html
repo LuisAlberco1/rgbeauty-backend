@@ -15,71 +15,63 @@
     </div>
 </section>
 
+{% if error %}<div class="message error">{{ error }}</div>{% endif %}
+
 <section class="stats-grid">
     <article class="stat-card highlight">
-        <div class="stat-label">Productos registrados</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Productos incluidos en el inventario</div>
+        <div class="stat-label">Productos en inventario</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.0 }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Productos distintos que coinciden con los filtros</div>
     </article>
-
     <article class="stat-card">
         <div class="stat-label">Stock disponible</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Unidades totales registradas</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.1 }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Unidades en los inventarios filtrados</div>
     </article>
-
     <article class="stat-card alert">
         <div class="stat-label">Stock bajo</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Productos que requieren reposición</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.2 }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Entre 1 y {{ low_stock_threshold }} unidades</div>
     </article>
-
     <article class="stat-card alert">
         <div class="stat-label">Agotados</div>
-        <div class="stat-value">—</div>
-        <div class="stat-description">Productos sin unidades disponibles</div>
+        <div class="stat-value">{% if stock_stats %}{{ stock_stats.3 }}{% else %}—{% endif %}</div>
+        <div class="stat-description">Productos con stock en cero</div>
     </article>
 </section>
 
 <section class="panel stock-filters-panel">
     <h2>Consulta de existencias</h2>
-    <p class="panel-subtitle">
-        Área preparada para buscar y filtrar productos del inventario.
-    </p>
-
-    <div class="stock-filters">
+    <p class="panel-subtitle">Busca por nombre o SKU y filtra por inventario o estado del stock.</p>
+    <form method="get" class="stock-filters">
         <div class="form-group">
-            <label for="buscar-producto">Buscar producto</label>
-            <input
-                type="search"
-                id="buscar-producto"
-                placeholder="Nombre o código SKU"
-                disabled
-            >
+            <label for="{{ form.buscar.id_for_label }}">{{ form.buscar.label }}</label>
+            {{ form.buscar }}
+            {% if form.buscar.errors %}<div class="form-errors">{{ form.buscar.errors }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-            <label for="estado-stock">Estado del stock</label>
-            <select id="estado-stock" disabled>
-                <option value="">Todos los estados</option>
-                <option value="disponible">Disponible</option>
-                <option value="bajo">Stock bajo</option>
-                <option value="agotado">Agotado</option>
-            </select>
+            <label for="{{ form.inventario.id_for_label }}">{{ form.inventario.label }}</label>
+            {{ form.inventario }}
+            {% if form.inventario.errors %}<div class="form-errors">{{ form.inventario.errors }}</div>{% endif %}
         </div>
-    </div>
+        <div class="form-group">
+            <label for="{{ form.estado.id_for_label }}">{{ form.estado.label }}</label>
+            {{ form.estado }}
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary">Filtrar</button>
+            <a href="{% url 'inventario:stock_lista' %}" class="button button-secondary">Limpiar</a>
+        </div>
+    </form>
 </section>
 
 <section class="panel stock-table-panel">
     <div class="stock-table-heading">
         <div>
             <h2>Detalle del inventario</h2>
-            <p class="panel-subtitle">
-                Vista general de las existencias por producto.
-            </p>
+            <p class="panel-subtitle">Stock bajo se define como {{ low_stock_threshold }} unidades o menos; agotado corresponde a cero.</p>
         </div>
     </div>
-
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -87,26 +79,50 @@
                     <th>Producto</th>
                     <th>SKU</th>
                     <th>Categoría</th>
+                    <th>Inventario</th>
                     <th>Stock actual</th>
                     <th>Stock mínimo</th>
                     <th>Estado</th>
                 </tr>
             </thead>
-
             <tbody>
+                {% for row in stock_rows %}
                 <tr>
-                    <td colspan="6">
+                    <td>{{ row.producto }}</td>
+                    <td>{{ row.sku }}</td>
+                    <td>{{ row.categoria }}</td>
+                    <td>{{ row.inventario }}</td>
+                    <td>{{ row.stock_actual }}</td>
+                    <td>{{ low_stock_threshold }} unidades</td>
+                    <td>
+                        <span class="status-badge {% if row.estado_stock == 'agotado' %}status-inactive{% elif row.estado_stock == 'bajo' %}status-low{% else %}status-active{% endif %}">
+                            {% if row.estado_stock == "agotado" %}Agotado{% elif row.estado_stock == "bajo" %}Stock bajo{% else %}Disponible{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">
                         <div class="empty-state">
                             <strong>No hay existencias para mostrar</strong>
-                            <p>
-                                Los datos de stock aparecerán cuando se
-                                implemente la conexión con el inventario.
-                            </p>
+                            <p>No se encontraron productos para los filtros seleccionados.</p>
                         </div>
                     </td>
                 </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
+    {% if total_pages > 1 %}
+    <nav class="table-pagination" aria-label="Paginación de existencias">
+        {% if current_page > 1 %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'-1' }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ current_page }} de {{ total_pages }}</span>
+        {% if current_page < total_pages %}
+        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'1' }}">Siguiente</a>
+        {% endif %}
+    </nav>
+    {% endif %}
 </section>
 {% endblock %}

@@ -7,7 +7,7 @@ from .models import (
     ProductoPrecio,
     TipoMovimiento,
 )
-from .services import MAX_STOCK
+from .services import LOW_STOCK_THRESHOLD, MAX_STOCK
 
 
 class ProductoForm(forms.ModelForm):
@@ -211,4 +211,77 @@ class AjusteStockForm(BaseStockForm):
         help_text="Ingresa la cantidad real contada; el sistema calculará la diferencia.",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "1", "required": True}),
     )
+
+
+class ExistenciasFiltroForm(forms.Form):
+    buscar = forms.CharField(
+        required=False,
+        label="Buscar producto",
+        widget=forms.SearchInput(attrs={
+            "class": "form-control",
+            "placeholder": "Nombre o código SKU",
+        }),
+    )
+    inventario = forms.ModelChoiceField(
+        required=False,
+        label="Inventario",
+        queryset=Inventario.objects.filter(activo=True).order_by("nombre"),
+        empty_label="Todos los inventarios",
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    estado = forms.ChoiceField(
+        required=False,
+        label="Estado del stock",
+        choices=(
+            ("", "Todos los estados"),
+            ("disponible", "Disponible"),
+            ("bajo", f"Stock bajo (1 a {LOW_STOCK_THRESHOLD})"),
+            ("agotado", "Agotado"),
+        ),
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+
+    def clean_buscar(self):
+        return self.cleaned_data["buscar"].strip()
+
+
+class HistorialFiltroForm(forms.Form):
+    producto = forms.ModelChoiceField(
+        required=False,
+        label="Producto",
+        queryset=Producto.objects.order_by("nombre"),
+        empty_label="Todos los productos",
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    tipo = forms.ChoiceField(
+        required=False,
+        label="Tipo de movimiento",
+        choices=(
+            ("", "Todos los movimientos"),
+            ("Entrada", "Entrada"),
+            ("Salida", "Salida"),
+            ("Ajuste", "Ajuste"),
+        ),
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    desde = forms.DateField(
+        required=False,
+        label="Desde",
+        input_formats=["%Y-%m-%d"],
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    hasta = forms.DateField(
+        required=False,
+        label="Hasta",
+        input_formats=["%Y-%m-%d"],
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        desde = cleaned_data.get("desde")
+        hasta = cleaned_data.get("hasta")
+        if desde and hasta and desde > hasta:
+            raise forms.ValidationError("La fecha «Desde» no puede ser posterior a «Hasta».")
+        return cleaned_data
  

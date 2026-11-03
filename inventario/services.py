@@ -13,6 +13,17 @@ from .models import (
 )
 
 MAX_STOCK = 2_147_483_647
+LOW_STOCK_THRESHOLD = 5
+
+
+def clasificar_stock(cantidad: int) -> str:
+    if cantidad < 0:
+        raise ValueError("La cantidad de stock no puede ser negativa.")
+    if cantidad == 0:
+        return "agotado"
+    if cantidad <= LOW_STOCK_THRESHOLD:
+        return "bajo"
+    return "disponible"
 
 
 class MovimientoStockError(Exception):
