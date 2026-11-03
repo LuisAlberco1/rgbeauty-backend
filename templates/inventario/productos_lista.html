@@ -9,10 +9,17 @@
 {% block content %}
 <section class="page-heading">
     <div>
-        <h1>Productos</h1>
-        <p>Administra el catálogo de productos de RG Beauty.</p>
+        <h1>{% if mis_productos %}Mis productos{% else %}Catálogo de productos{% endif %}</h1>
+        <p>{% if mis_productos %}Productos que has creado y puedes administrar.{% else %}Consulta el catálogo compartido de productos de RG Beauty.{% endif %}</p>
     </div>
-    <a href="{% url 'inventario:producto_form' %}" class="button button-primary">+ Nuevo producto</a>
+    <div class="page-actions">
+        {% if mis_productos %}
+        <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Ver catálogo</a>
+        {% else %}
+        <a href="{% url 'inventario:mis_productos' %}" class="button button-secondary">Mis productos</a>
+        {% endif %}
+        <a href="{% url 'inventario:producto_form' %}" class="button button-primary">+ Nuevo producto</a>
+    </div>
 </section>
 
 {% if messages %}
@@ -22,7 +29,7 @@
 {% endif %}
 
 <section class="panel">
-    <h2>Catálogo de productos</h2>
+    <h2>{% if mis_productos %}Mis productos{% else %}Catálogo compartido{% endif %}</h2>
     <p class="panel-subtitle">Consulta, busca y organiza los productos registrados.</p>
     <form method="get" class="product-filters">
         <div class="form-group">
@@ -65,7 +72,7 @@
 <section class="panel products-table-panel">
     <div class="table-wrapper">
         <table class="data-table">
-            <thead><tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Creado por</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody>
             {% for producto in productos %}
                 <tr>
@@ -78,18 +85,23 @@
                             {% if precio.activo and not precio.fecha_fin %}${{ precio.precio|floatformat:2 }}{% endif %}
                         {% empty %}Sin precio{% endfor %}
                     </td>
+                    <td>{% if producto.creado_por %}{{ producto.creado_por.get_username }}{% else %}Sin asignar{% endif %}</td>
                     <td><span class="status-badge {% if producto.activo %}status-active{% else %}status-inactive{% endif %}">{% if producto.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
                     <td class="actions-cell">
+                        {% if user.is_superuser or producto.creado_por_id == user.pk %}
                         <a href="{% url 'inventario:producto_editar' producto.pk %}">Editar</a>
                         {% if producto.activo %}
                         <form method="post" action="{% url 'inventario:producto_desactivar' producto.pk %}" onsubmit="return confirm('¿Deseas quitar este producto del catálogo activo? Se conservará en el historial.');">
                             {% csrf_token %}<button type="submit" class="button-danger-link">Eliminar del catálogo</button>
                         </form>
                         {% endif %}
+                        {% else %}
+                        <span class="muted-action">Solo el creador puede editar</span>
+                        {% endif %}
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="7"><div class="empty-state"><strong>No hay productos para mostrar</strong><p>No se encontraron productos con los filtros seleccionados.</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><strong>No hay productos para mostrar</strong><p>No se encontraron productos con los filtros seleccionados.</p></div></td></tr>
             {% endfor %}
             </tbody>
         </table>

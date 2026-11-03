@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
  
 
@@ -49,6 +50,14 @@ class Producto(models.Model):
     sku = models.CharField(max_length=50, unique=True)
     nombre = models.CharField(max_length=150)
     descripcion = models.TextField(blank=True, null=True)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        db_column="creado_por_id",
+        related_name="productos_creados",
+        null=True,
+        blank=True,
+    )
     activo = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 

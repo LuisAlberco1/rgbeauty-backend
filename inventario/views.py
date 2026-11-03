@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.core.exceptions import PermissionDenied
 from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.db.models import Q, Prefetch
 from django.http import JsonResponse
@@ -158,16 +159,21 @@ def dashboard(request):
     return render(request, "dashboard/index.html", context)
 
 
-@login_required
-def productos_lista(request):
+def _productos_lista(request, propietario=None, mis_productos=False):
     buscar = request.GET.get("buscar", "").strip()
     categoria_id = request.GET.get("categoria", "").strip()
     marca_id = request.GET.get("marca", "").strip()
     estado = request.GET.get("estado", "").strip()
 
-    productos = Producto.objects.select_related("categoria", "marca").prefetch_related(
+    productos = Producto.objects.select_related(
+        "categoria",
+        "marca",
+        "creado_por",
+    ).prefetch_related(
         Prefetch("precios", queryset=ProductoPrecio.objects.order_by("-fecha_inicio"))
     )
+    if propietario is not None:
+        productos = productos.filter(creado_por=propietario)
 
     if buscar:
         productos = productos.filter(
@@ -201,12 +207,38 @@ def productos_lista(request):
         "categoria_seleccionada": categoria_id,
         "marca_seleccionada": marca_id,
         "estado_seleccionado": estado,
+        "mis_productos": mis_productos,
     })
+
+
+@login_required
+def productos_lista(request):
+    return _productos_lista(request)
+
+
+@login_required
+def mis_productos(request):
+    return _productos_lista(request, propietario=request.user, mis_productos=True)
+
+
+def _puede_editar_producto(usuario, producto):
+    return (
+        usuario.is_superuser
+        or producto.creado_por_id == usuario.pk
+        or usuario.has_perm("inventario.change_producto")
+    )
+
+
+def _verificar_permiso_producto(usuario, producto):
+    if not _puede_editar_producto(usuario, producto):
+        raise PermissionDenied
 
 
 @login_required
 def producto_form(request, id_producto=None):
     producto = get_object_or_404(Producto, pk=id_producto) if id_producto is not None else None
+    if producto is not None:
+        _verificar_permiso_producto(request.user, producto)
 
     if request.method == "POST":
         form = ProductoForm(request.POST, instance=producto)
@@ -216,6 +248,7 @@ def producto_form(request, id_producto=None):
                     producto_guardado = form.save(commit=False)
                     if producto is None:
                         producto_guardado.activo = True
+                        producto_guardado.creado_por = request.user
                     producto_guardado.save()
 
                     nuevo_precio = form.cleaned_data["precio"]
@@ -260,6 +293,7 @@ def producto_form(request, id_producto=None):
 @require_POST
 def producto_desactivar(request, id_producto):
     producto = get_object_or_404(Producto, pk=id_producto)
+    _verificar_permiso_producto(request.user, producto)
     if producto.activo:
         producto.activo = False
         producto.save(update_fields=["activo"])

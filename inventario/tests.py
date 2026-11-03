@@ -3,13 +3,25 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.management.base import CommandError
-from django.test import RequestFactory, SimpleTestCase
+from django.core.exceptions import PermissionDenied
+from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 
 from .management.commands.link_stock_user import Command
+from .management.commands.setup_inventory_permissions import (
+    GROUP_NAME,
+    Command as SetupInventoryPermissionsCommand,
+)
 from .forms import HistorialFiltroForm
 from .models import Inventario, Producto
 from .services import MovimientoStockError, calcular_stock_nuevo, clasificar_stock
-from .views import _stock_filter_sql, stock_actual
+from .views import (
+    _puede_editar_producto,
+    _stock_filter_sql,
+    _verificar_permiso_producto,
+    stock_actual,
+)
 
 
 class VincularUsuarioStockTests(SimpleTestCase):
@@ -24,6 +36,26 @@ class VincularUsuarioStockTests(SimpleTestCase):
     def test_rechaza_valor_obligatorio_vacio(self, _input_mock):
         with self.assertRaises(CommandError):
             Command()._read_value("RUT")
+
+
+class SetupInventoryPermissionsTests(TestCase):
+    def test_creates_group_and_assigns_product_change_permission_idempotently(self):
+        content_type = ContentType.objects.get(
+            app_label="inventario",
+            model="producto",
+        )
+        permission = Permission.objects.get(
+            content_type=content_type,
+            codename="change_producto",
+        )
+        command = SetupInventoryPermissionsCommand()
+
+        command.handle()
+        command.handle()
+
+        group = Group.objects.get(name=GROUP_NAME)
+        self.assertEqual(Group.objects.filter(name=GROUP_NAME).count(), 1)
+        self.assertTrue(group.permissions.filter(pk=permission.pk).exists())
 
 
 class StockActualEndpointTests(SimpleTestCase):
@@ -82,6 +114,47 @@ class ExistenciasFiltroTests(SimpleTestCase):
         self.assertIn("BETWEEN 1 AND %s", where_sql)
         self.assertEqual(params, ["%sku' OR 1=1 --%", "%sku' OR 1=1 --%", 4, 5])
         self.assertNotIn("sku' OR 1=1 --", where_sql)
+
+
+class PermisosProductoTests(SimpleTestCase):
+    def setUp(self):
+        self.owner = SimpleNamespace(
+            pk=11,
+            is_superuser=False,
+            has_perm=lambda _permission: False,
+        )
+        self.other_user = SimpleNamespace(
+            pk=12,
+            is_superuser=False,
+            has_perm=lambda _permission: False,
+        )
+        self.authorized_staff = SimpleNamespace(
+            pk=13,
+            is_superuser=False,
+            has_perm=lambda permission: permission == "inventario.change_producto",
+        )
+        self.superuser = SimpleNamespace(
+            pk=14,
+            is_superuser=True,
+            has_perm=lambda _permission: True,
+        )
+        self.product = SimpleNamespace(creado_por_id=self.owner.pk)
+        self.unowned_product = SimpleNamespace(creado_por_id=None)
+
+    def test_solo_creador_o_superusuario_puede_editar(self):
+        self.assertTrue(_puede_editar_producto(self.owner, self.product))
+        self.assertFalse(_puede_editar_producto(self.other_user, self.product))
+        self.assertTrue(_puede_editar_producto(self.authorized_staff, self.product))
+        self.assertTrue(_puede_editar_producto(self.superuser, self.product))
+
+    def test_productos_anteriores_sin_creador_solo_son_editables_por_superusuario(self):
+        self.assertFalse(_puede_editar_producto(self.owner, self.unowned_product))
+        self.assertTrue(_puede_editar_producto(self.authorized_staff, self.unowned_product))
+        self.assertTrue(_puede_editar_producto(self.superuser, self.unowned_product))
+
+    def test_acceso_de_otro_usuario_se_deniega(self):
+        with self.assertRaises(PermissionDenied):
+            _verificar_permiso_producto(self.other_user, self.product)
 
 
 class CalculoStockTests(SimpleTestCase):

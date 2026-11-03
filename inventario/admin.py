@@ -23,11 +23,35 @@ class ProductoPrecioInline(admin.TabularInline):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    list_display = ("id_producto", "sku", "nombre", "categoria", "marca", "activo", "fecha_creacion")
+    list_display = (
+        "id_producto",
+        "sku",
+        "nombre",
+        "categoria",
+        "marca",
+        "creado_por",
+        "activo",
+        "fecha_creacion",
+    )
     search_fields = ("sku", "nombre", "marca__nombre", "categoria__nombre")
     list_filter = ("activo", "categoria", "marca")
-    list_select_related = ("categoria", "marca")
+    list_select_related = ("categoria", "marca", "creado_por")
     inlines = (ProductoPrecioInline,)
+    exclude = ("creado_por",)
 
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.creado_por = request.user
+        super().save_model(request, obj, form, change)
 
+    def has_change_permission(self, request, obj=None):
+        if obj is None:
+            return super().has_change_permission(request, obj)
+        return (
+            request.user.is_superuser
+            or obj.creado_por_id == request.user.pk
+            or request.user.has_perm("inventario.change_producto")
+        )
 
+    def has_delete_permission(self, request, obj=None):
+        return False

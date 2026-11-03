@@ -35,7 +35,13 @@
                 <a href="{% url 'inventario:productos_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'productos_lista' %}active{% endif %}">
                     <span class="nav-icon">▤</span>
-                    <span>Productos</span>
+                    <span>Catálogo de productos</span>
+                </a>
+
+                <a href="{% url 'inventario:mis_productos' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'mis_productos' %}active{% endif %}">
+                    <span class="nav-icon">♙</span>
+                    <span>Mis productos</span>
                 </a>
 
                 <a href="{% url 'inventario:categorias_lista' %}"
