@@ -15,9 +15,11 @@
     </div>
 </section>
 
-{% if error %}<div class="message error">{{ error }}</div>{% endif %}
+<div data-live-results="stock-error">
+    {% if error %}<div class="message error">{{ error }}</div>{% endif %}
+</div>
 
-<section class="stats-grid">
+<section class="stats-grid" data-live-results="stock-stats">
     <article class="stat-card highlight">
         <div class="stat-label">Productos en inventario</div>
         <div class="stat-value">{% if stock_stats %}{{ stock_stats.productos }}{% else %}—{% endif %}</div>
@@ -43,7 +45,7 @@
 <section class="panel stock-filters-panel">
     <h2>Consulta de existencias</h2>
     <p class="panel-subtitle">Busca por nombre o SKU y filtra por inventario o estado del stock.</p>
-    <form method="get" class="stock-filters">
+    <form method="get" class="stock-filters" data-live-filter>
         <div class="form-group">
             <label for="{{ form.buscar.id_for_label }}">{{ form.buscar.label }}</label>
             {{ form.buscar }}
@@ -61,11 +63,12 @@
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Filtrar</button>
             <a href="{% url 'inventario:stock_lista' %}" class="button button-secondary">Limpiar</a>
+            <span data-live-status aria-live="polite"></span>
         </div>
     </form>
 </section>
 
-<section class="panel stock-table-panel">
+<section class="panel stock-table-panel" data-live-results="stock-results">
     <div class="stock-table-heading">
         <div>
             <h2>Detalle del inventario</h2>
@@ -88,7 +91,7 @@
             <tbody>
                 {% for row in stock_rows %}
                 <tr>
-                    <td>{{ row.producto.nombre }}</td>
+                    <td><a href="{% url 'inventario:producto_detalle' row.producto.pk %}">{{ row.producto.nombre }}</a>{% if row.producto.archivado %}<br><span class="muted-action">Retirado del catálogo</span>{% endif %}</td>
                     <td>{{ row.producto.sku }}</td>
                     <td>{{ row.producto.categoria.nombre }}</td>
                     <td>{{ row.inventario.nombre }}</td>
@@ -116,11 +119,11 @@
     {% if total_pages > 1 %}
     <nav class="table-pagination" aria-label="Paginación de existencias">
         {% if current_page > 1 %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'-1' }}">Anterior</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'-1' }}">Anterior</a>
         {% endif %}
         <span>Página {{ current_page }} de {{ total_pages }}</span>
         {% if current_page < total_pages %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'1' }}">Siguiente</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ current_page|add:'1' }}">Siguiente</a>
         {% endif %}
     </nav>
     {% endif %}

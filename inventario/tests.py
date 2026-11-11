@@ -1,33 +1,36 @@
+import io
 import json
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.core.management.base import CommandError
 from django.core.exceptions import PermissionDenied
+from django.core.files.storage import default_storage
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, SimpleTestCase, TestCase
-from django.contrib.auth.models import Group, Permission
-from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
+from django.contrib.auth.models import Group
+from django.db import connection
+from django.utils import timezone
+from PIL import Image
 
-from .management.commands.link_stock_user import Command
-from .management.commands.setup_inventory_permissions import (
-    GROUP_NAME,
-    Command as SetupInventoryPermissionsCommand,
-)
 from .forms import HistorialFiltroForm
+from .initial_setup import configure_roles
+from .management.commands.setup_inventory import Command as SetupInventoryCommand
 from .models import (
     CategoriaProducto,
     Inventario,
     Marca,
     MovimientoInventario,
-    Persona,
     Producto,
+    ProductoImagen,
     ProductoPrecio,
+    RegistroAcceso,
     Stock,
     TipoMovimiento,
     DetalleMovimiento,
-    UsuarioNegocio,
 )
 from .services import (
     MovimientoStockError,
@@ -35,45 +38,90 @@ from .services import (
     clasificar_stock,
     registrar_movimiento_stock,
 )
-from .admin import UsuarioNegocioAdmin
+from .session_utils import hash_session_key
+from .roles import (
+    ADMIN_GROUP_NAME,
+    ASSISTANT_GROUP_NAME,
+    LEGACY_INVENTORY_GROUP_NAME,
+)
 from .views import (
     _puede_editar_producto,
     _verificar_permiso_producto,
 )
 
 
-class VincularUsuarioStockTests(SimpleTestCase):
-    @patch("builtins.input", return_value="  12345678-9  ")
-    def test_solicita_valor_y_elimina_espacios(self, input_mock):
-        command = Command()
-
-        self.assertEqual(command._read_value("RUT"), "12345678-9")
-        input_mock.assert_called_once_with("RUT: ")
-
-    @patch("builtins.input", return_value="")
-    def test_rechaza_valor_obligatorio_vacio(self, _input_mock):
-        with self.assertRaises(CommandError):
-            Command()._read_value("RUT")
-
-
-class SetupInventoryPermissionsTests(TestCase):
-    def test_creates_group_and_assigns_product_change_permission_idempotently(self):
-        content_type = ContentType.objects.get(
-            app_label="inventario",
-            model="producto",
+class SetupInitialRolesTests(TestCase):
+    def test_creates_roles_and_limits_assistant_permissions_idempotently(self):
+        legacy_user = get_user_model().objects.create_user(
+            username="legacy-assistant",
+            password="StrongPass#1234",
         )
-        permission = Permission.objects.get(
-            content_type=content_type,
-            codename="change_producto",
+        Group.objects.get_or_create(name=LEGACY_INVENTORY_GROUP_NAME)
+        legacy_user.groups.add(Group.objects.get(name=LEGACY_INVENTORY_GROUP_NAME))
+
+        configure_roles()
+        configure_roles()
+
+        group = Group.objects.get(name=LEGACY_INVENTORY_GROUP_NAME)
+        self.assertEqual(
+            Group.objects.filter(name=LEGACY_INVENTORY_GROUP_NAME).count(),
+            1,
         )
-        command = SetupInventoryPermissionsCommand()
+        self.assertFalse(group.permissions.filter(codename="change_producto").exists())
+        assistant = Group.objects.get(name=ASSISTANT_GROUP_NAME)
+        self.assertTrue(
+            assistant.permissions.filter(codename="register_stock_movement").exists()
+        )
+        self.assertFalse(
+            assistant.permissions.filter(codename="adjust_stock").exists()
+        )
+        administrator = Group.objects.get(name=ADMIN_GROUP_NAME)
+        self.assertTrue(
+            administrator.permissions.filter(codename="manage_team_accounts").exists()
+        )
+        legacy_user.refresh_from_db()
+        self.assertTrue(legacy_user.groups.filter(name=ASSISTANT_GROUP_NAME).exists())
+        self.assertFalse(
+            legacy_user.groups.filter(name=LEGACY_INVENTORY_GROUP_NAME).exists()
+        )
 
-        command.handle()
-        command.handle()
 
-        group = Group.objects.get(name=GROUP_NAME)
-        self.assertEqual(Group.objects.filter(name=GROUP_NAME).count(), 1)
-        self.assertTrue(group.permissions.filter(pk=permission.pk).exists())
+class SetupInventoryCommandTests(TestCase):
+    def test_command_configures_application_and_creates_owner_account(self):
+        with (
+            patch("builtins.input", side_effect=["owner", "owner@example.com"]),
+            patch(
+                "getpass.getpass",
+                side_effect=["StrongPass#1234", "StrongPass#1234"],
+            ),
+        ):
+            SetupInventoryCommand().handle()
+
+        owner = get_user_model().objects.get(username="owner")
+        self.assertTrue(owner.is_active)
+        self.assertFalse(owner.is_staff)
+        self.assertFalse(owner.is_superuser)
+        self.assertTrue(owner.groups.filter(name=ADMIN_GROUP_NAME).exists())
+        self.assertTrue(Group.objects.filter(name=ASSISTANT_GROUP_NAME).exists())
+        self.assertTrue(Inventario.objects.filter(activo=True).exists())
+        self.assertTrue(
+            TipoMovimiento.objects.filter(nombre__in=["Entrada", "Salida"]).count()
+            == 2
+        )
+
+    def test_command_does_not_prompt_if_an_active_application_owner_exists(self):
+        configure_roles()
+        owner = get_user_model().objects.create_user(
+            username="existing-owner",
+            password="StrongPass#1234",
+        )
+        owner.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+
+        with patch("builtins.input") as input_mock:
+            SetupInventoryCommand().handle()
+
+        input_mock.assert_not_called()
+        self.assertEqual(get_user_model().objects.filter(is_superuser=True).count(), 0)
 
 
 class InventarioAdminTests(TestCase):
@@ -94,8 +142,6 @@ class InventarioAdminTests(TestCase):
             ProductoPrecio,
             Stock,
             TipoMovimiento,
-            Persona,
-            UsuarioNegocio,
             MovimientoInventario,
             DetalleMovimiento,
         )
@@ -122,33 +168,309 @@ class InventarioAdminTests(TestCase):
         self.assertFalse(model_admin.has_change_permission(request))
         self.assertFalse(model_admin.has_delete_permission(request))
 
-    def test_business_user_admin_requires_existing_django_account(self):
-        person = Persona.objects.create(
-            rut="22222222-2",
-            nombre="Asistente",
-            apellido_paterno="Inventario",
-            email="asistente@example.com",
-        )
+    def test_persona_table_remains_for_customer_and_address_records(self):
+        self.assertIn("persona", connection.introspection.table_names())
+
+
+class GestionCuentasEquipoTests(TestCase):
+    def setUp(self):
+        configure_roles()
         user_model = get_user_model()
-        user_model.objects.create_user(
-            username="assistant-account",
+        self.owner = user_model.objects.create_superuser(
+            username="team-owner",
+            email="owner@example.com",
+            password="StrongPass#1234",
+        )
+        self.assistant = user_model.objects.create_user(
+            username="team-assistant",
+            email="assistant@example.com",
             password="StrongPass#1234",
         )
 
-        valid_form = UsuarioNegocioAdmin.Form(data={
-            "persona": person.pk,
-            "nombre_usuario": "assistant-account",
-            "activo": "on",
-        })
-        invalid_form = UsuarioNegocioAdmin.Form(data={
-            "persona": person.pk,
-            "nombre_usuario": "missing-account",
-            "activo": "on",
+    def test_only_superusers_can_manage_team_accounts(self):
+        self.client.force_login(self.assistant)
+
+        response = self.client.get("/equipo/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_owner_can_create_assistant_account_with_django_group(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post("/equipo/nueva/", {
+            "username": "new-assistant",
+            "first_name": "Ana",
+            "last_name": "Asistente",
+            "email": "ana@example.com",
+            "role": ASSISTANT_GROUP_NAME,
+            "is_active": "on",
+            "password1": "StrongPass#5678",
+            "password2": "StrongPass#5678",
         })
 
-        self.assertTrue(valid_form.is_valid(), valid_form.errors)
-        self.assertFalse(invalid_form.is_valid())
-        self.assertIn("Crea primero esta cuenta", str(invalid_form.errors))
+        self.assertRedirects(response, "/equipo/")
+        new_user = get_user_model().objects.get(username="new-assistant")
+        self.assertFalse(new_user.is_superuser)
+        self.assertTrue(new_user.groups.filter(name=ASSISTANT_GROUP_NAME).exists())
+        self.assertTrue(new_user.check_password("StrongPass#5678"))
+        self.assertEqual(new_user.first_name, "Ana")
+        self.assertEqual(new_user.last_name, "Asistente")
+        self.assertEqual(new_user.email, "ana@example.com")
+
+    def test_owner_can_create_a_non_superuser_administrator_account(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post("/equipo/nueva/", {
+            "username": "store-manager",
+            "first_name": "Nueva",
+            "last_name": "Administradora",
+            "email": "manager@example.com",
+            "role": ADMIN_GROUP_NAME,
+            "is_active": "on",
+            "password1": "StrongPass#5678",
+            "password2": "StrongPass#5678",
+        })
+
+        self.assertRedirects(response, "/equipo/")
+        manager = get_user_model().objects.get(username="store-manager")
+        self.assertFalse(manager.is_superuser)
+        self.assertTrue(manager.groups.filter(name=ADMIN_GROUP_NAME).exists())
+        self.client.force_login(manager)
+        self.assertEqual(self.client.get("/equipo/").status_code, 200)
+        self.assertEqual(self.client.get("/admin/").status_code, 302)
+
+    def test_owner_must_provide_account_name_and_email(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post("/equipo/nueva/", {
+            "username": "incomplete-assistant",
+            "role": ASSISTANT_GROUP_NAME,
+            "is_active": "on",
+            "password1": "StrongPass#5678",
+            "password2": "StrongPass#5678",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            get_user_model().objects.filter(username="incomplete-assistant").exists()
+        )
+
+    def test_owner_cannot_assign_an_email_already_used_by_another_account(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post("/equipo/nueva/", {
+            "username": "duplicate-email-assistant",
+            "first_name": "Nueva",
+            "last_name": "Asistente",
+            "email": self.assistant.email,
+            "role": ASSISTANT_GROUP_NAME,
+            "is_active": "on",
+            "password1": "StrongPass#5678",
+            "password2": "StrongPass#5678",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ya existe una cuenta con ese correo electrónico.")
+        self.assertFalse(
+            get_user_model().objects.filter(username="duplicate-email-assistant").exists()
+        )
+
+    def test_owner_can_deactivate_account_without_deleting_it(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(f"/equipo/{self.assistant.pk}/estado/")
+
+        self.assertRedirects(response, "/equipo/")
+        self.assistant.refresh_from_db()
+        self.assertFalse(self.assistant.is_active)
+        self.assertTrue(
+            get_user_model().objects.filter(pk=self.assistant.pk).exists()
+        )
+
+    def test_last_administrator_cannot_deactivate_their_own_account(self):
+        manager = get_user_model().objects.create_user(
+            username="only-manager",
+            email="only-manager@example.com",
+            password="StrongPass#1234",
+        )
+        manager.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.client.force_login(manager)
+
+        response = self.client.post(f"/equipo/{manager.pk}/estado/", follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        manager.refresh_from_db()
+        self.assertTrue(manager.is_active)
+        self.assertContains(response, "No puedes desactivar tu propia cuenta.")
+
+    def test_last_administrator_cannot_change_their_role_to_assistant(self):
+        manager = get_user_model().objects.create_user(
+            username="only-manager-role",
+            first_name="Única",
+            last_name="Administradora",
+            email="only-manager-role@example.com",
+            password="StrongPass#1234",
+        )
+        manager.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.client.force_login(manager)
+
+        response = self.client.post(f"/equipo/{manager.pk}/editar/", {
+            "username": manager.username,
+            "first_name": manager.first_name,
+            "last_name": manager.last_name,
+            "email": manager.email,
+            "role": ASSISTANT_GROUP_NAME,
+            "is_active": "on",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        manager.refresh_from_db()
+        self.assertTrue(manager.groups.filter(name=ADMIN_GROUP_NAME).exists())
+        self.assertContains(response, "Crea otra cuenta Administradora primero.")
+
+    def test_only_owner_can_view_access_history(self):
+        self.client.force_login(self.assistant)
+
+        response = self.client.get("/cuenta/accesos/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_owner_sees_current_sessions_and_login_history(self):
+        self.client.force_login(self.owner)
+
+        account_response = self.client.get("/cuenta/")
+        response = self.client.get("/cuenta/accesos/")
+
+        self.assertContains(account_response, "Gestionar cuentas")
+        self.assertContains(account_response, "Ver historial de accesos")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "team-owner")
+        self.assertContains(response, "Activa")
+        self.assertEqual(RegistroAcceso.objects.filter(usuario=self.owner).count(), 1)
+
+    def test_assistant_account_page_does_not_show_management_actions(self):
+        self.client.force_login(self.assistant)
+
+        response = self.client.get("/cuenta/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Administración del equipo")
+
+    def test_superuser_can_switch_to_application_administrator(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post("/cuenta/activar-administradora/")
+
+        self.assertRedirects(response, "/cuenta/")
+        self.owner.refresh_from_db()
+        self.assertFalse(self.owner.is_superuser)
+        self.assertFalse(self.owner.is_staff)
+        self.assertTrue(self.owner.has_perm("inventario.manage_team_accounts"))
+        self.assertEqual(self.client.get("/equipo/").status_code, 200)
+        self.assertEqual(self.client.get("/admin/").status_code, 302)
+
+
+class PermisosAsistentaTests(TestCase):
+    def setUp(self):
+        configure_roles()
+        self.user = get_user_model().objects.create_user(
+            username="assistant-role",
+            email="assistant-role@example.com",
+            password="StrongPass#1234",
+        )
+        self.user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
+        self.client.force_login(self.user)
+
+    def test_assistant_can_view_catalog_stock_and_register_movements(self):
+        catalog = self.client.get("/productos/")
+        self.assertEqual(catalog.status_code, 200)
+        self.assertNotContains(catalog, "Nuevo producto")
+        self.assertNotContains(catalog, "Mis productos")
+        self.assertEqual(self.client.get("/stock/").status_code, 200)
+        self.assertEqual(self.client.get("/movimientos/nuevo/").status_code, 200)
+
+    def test_assistant_cannot_adjust_stock_manage_products_or_view_audit_history(self):
+        self.assertEqual(self.client.get("/ajustes-stock/").status_code, 403)
+        self.assertEqual(self.client.get("/historial/").status_code, 403)
+        self.assertEqual(self.client.get("/productos/nuevo/").status_code, 403)
+        self.assertEqual(self.client.get("/categorias/").status_code, 403)
+        self.assertEqual(self.client.get("/marcas/").status_code, 403)
+        self.assertEqual(self.client.get("/equipo/").status_code, 403)
+
+    def test_assistant_can_record_a_stock_entry(self):
+        inventory = Inventario.objects.create(nombre="Bodega entrada")
+        category = CategoriaProducto.objects.create(nombre="Entrada")
+        brand = Marca.objects.create(nombre="Marca entrada")
+        product = Producto.objects.create(
+            categoria=category,
+            marca=brand,
+            sku="ENTRY-001",
+            nombre="Producto entrada",
+        )
+        entry_type = TipoMovimiento.objects.create(nombre="Entrada")
+        TipoMovimiento.objects.create(nombre="Salida")
+
+        response = self.client.post("/movimientos/nuevo/", {
+            "inventario": str(inventory.pk),
+            "producto": str(product.pk),
+            "tipo_movimiento": str(entry_type.pk),
+            "cantidad": "6",
+            "motivo": "Reposición",
+            "observacion": "",
+        })
+
+        self.assertRedirects(response, "/movimientos/nuevo/")
+        self.assertEqual(
+            Stock.objects.get(inventario=inventory, producto=product).cantidad_actual,
+            6,
+        )
+        self.assertTrue(
+            MovimientoInventario.objects.filter(usuario=self.user).exists()
+        )
+
+    def test_catalog_links_to_product_details_and_stock_is_linked_back(self):
+        inventory = Inventario.objects.create(nombre="Bodega asistenta")
+        category = CategoriaProducto.objects.create(nombre="Cuidado asistenta")
+        brand = Marca.objects.create(nombre="Marca asistenta")
+        product = Producto.objects.create(
+            categoria=category,
+            marca=brand,
+            sku="ASSISTANT-001",
+            nombre="Producto asistenta",
+        )
+        Stock.objects.filter(inventario=inventory, producto=product).update(
+            cantidad_actual=4
+        )
+
+        catalog = self.client.get("/productos/")
+        detail = self.client.get(f"/productos/{product.pk}/")
+        stock = self.client.get("/stock/")
+
+        self.assertContains(catalog, "Ver detalle y existencias")
+        self.assertContains(detail, "Existencias por inventario")
+        self.assertContains(detail, ">4</strong>")
+        self.assertContains(detail, "unidades.")
+        self.assertContains(detail, "Registrar entrada o salida")
+        self.assertContains(stock, f'href="/productos/{product.pk}/"')
+
+    def test_product_detail_prefills_movement_form(self):
+        inventory = Inventario.objects.create(nombre="Bodega preselección")
+        category = CategoriaProducto.objects.create(nombre="Categoría preselección")
+        brand = Marca.objects.create(nombre="Marca preselección")
+        product = Producto.objects.create(
+            categoria=category,
+            marca=brand,
+            sku="PREFILL-001",
+            nombre="Producto preselección",
+        )
+
+        response = self.client.get(f"/movimientos/nuevo/?producto={product.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["form"]["producto"].value(),
+            str(product.pk),
+        )
 
 
 class AccesoPrivadoTests(TestCase):
@@ -166,20 +488,28 @@ class AccesoPrivadoTests(TestCase):
         self.assertFalse(self.user_model.objects.filter(username="unauthorized-user").exists())
 
     def test_login_works_and_logout_requires_post(self):
+        configure_roles()
         self.user_model.objects.create_user(
             username="login-user",
             email="login@example.com",
             password="StrongPass#1234",
         )
 
+        self.user_model.objects.get(username="login-user").groups.add(
+            Group.objects.get(name=ASSISTANT_GROUP_NAME)
+        )
         response = self.client.post("/login/", {
             "username": "login-user",
             "password": "StrongPass#1234",
         })
         self.assertRedirects(response, "/")
+        access_record = RegistroAcceso.objects.get(nombre_usuario="login-user")
+        self.assertIsNone(access_record.cierre)
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertEqual(self.client.get("/logout/").status_code, 405)
         self.assertEqual(self.client.post("/logout/").status_code, 302)
+        access_record.refresh_from_db()
+        self.assertIsNotNone(access_record.cierre)
 
     def test_login_page_has_no_public_registration_link(self):
         response = self.client.get("/login/")
@@ -225,8 +555,8 @@ class CuentaUsuarioTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "staff-user")
         self.assertContains(response, "staff@example.com")
-        self.assertContains(response, "Productos registrados por ti")
-        self.assertContains(response, ">1</strong>")
+        self.assertContains(response, "Tipo de cuenta")
+        self.assertContains(response, "Asistenta")
         self.assertContains(response, "Mi cuenta")
         self.assertContains(response, "Cerrar sesión")
 
@@ -274,15 +604,86 @@ class CuentaUsuarioTests(TestCase):
         self.assertTrue(self.user.check_password("NewStrongPass#1234"))
         self.assertContains(response, "Tu contraseña se actualizó correctamente.")
         self.assertEqual(self.client.get("/cuenta/").status_code, 200)
+        access_record = RegistroAcceso.objects.get(usuario=self.user)
+        self.assertEqual(
+            access_record.clave_sesion_hash,
+            hash_session_key(self.client.session.session_key),
+        )
+
+
+class EliminacionCategoriaMarcaTests(TestCase):
+    def setUp(self):
+        configure_roles()
+        self.user = get_user_model().objects.create_user(
+            username="catalog-admin",
+            password="StrongPass#1234",
+        )
+        self.user.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.category = CategoriaProducto.objects.create(nombre="Categoría eliminable")
+        self.brand = Marca.objects.create(nombre="Marca eliminable")
+        self.client.force_login(self.user)
+
+    def test_admin_can_delete_unused_category_and_brand(self):
+        category_response = self.client.post(
+            f"/categorias/{self.category.pk}/eliminar/"
+        )
+        brand_response = self.client.post(f"/marcas/{self.brand.pk}/eliminar/")
+
+        self.assertRedirects(category_response, "/categorias/")
+        self.assertRedirects(brand_response, "/marcas/")
+        self.assertFalse(CategoriaProducto.objects.filter(pk=self.category.pk).exists())
+        self.assertFalse(Marca.objects.filter(pk=self.brand.pk).exists())
+
+    def test_category_and_brand_with_products_cannot_be_deleted(self):
+        Producto.objects.create(
+            categoria=self.category,
+            marca=self.brand,
+            sku="PROTECTED-001",
+            nombre="Producto protegido",
+        )
+
+        category_response = self.client.post(
+            f"/categorias/{self.category.pk}/eliminar/",
+            follow=True,
+        )
+        brand_response = self.client.post(
+            f"/marcas/{self.brand.pk}/eliminar/",
+            follow=True,
+        )
+
+        self.assertContains(category_response, "tiene productos asociados")
+        self.assertContains(brand_response, "tiene productos asociados")
+        self.assertTrue(CategoriaProducto.objects.filter(pk=self.category.pk).exists())
+        self.assertTrue(Marca.objects.filter(pk=self.brand.pk).exists())
+
+    def test_delete_actions_require_post_and_delete_permission(self):
+        self.assertEqual(
+            self.client.get(f"/categorias/{self.category.pk}/eliminar/").status_code,
+            405,
+        )
+        self.assertEqual(
+            self.client.get(f"/marcas/{self.brand.pk}/eliminar/").status_code,
+            405,
+        )
+        self.assertContains(
+            self.client.get("/categorias/"),
+            "Solo se podrá eliminar si no tiene productos asociados",
+        )
+        self.assertContains(
+            self.client.get("/marcas/"),
+            "Solo se podrá eliminar si no tiene productos asociados",
+        )
 
 
 class ProductosPaginacionTests(TestCase):
     def setUp(self):
+        configure_roles()
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
             username="catalog-user",
             password="StrongPass#1234",
         )
+        self.user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
         self.category = CategoriaProducto.objects.create(nombre="Cuidado")
         self.brand = Marca.objects.create(nombre="Marca demo")
         for index in range(11):
@@ -320,8 +721,37 @@ class ProductosPaginacionTests(TestCase):
         self.assertNotContains(response, "page=2&amp;page=")
 
 
+class FiltrosEnTiempoRealTests(TestCase):
+    def setUp(self):
+        configure_roles()
+        self.user = get_user_model().objects.create_user(
+            username="live-filter-admin",
+            password="StrongPass#1234",
+        )
+        self.user.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.client.force_login(self.user)
+
+    def test_all_list_filters_submit_automatically_and_keep_fallback_buttons(self):
+        pages = (
+            ("/productos/", "products"),
+            ("/categorias/", "categories"),
+            ("/marcas/", "brands"),
+            ("/stock/", "stock-results"),
+            ("/historial/", "history-results"),
+        )
+        for path, results_key in pages:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "data-live-filter")
+                self.assertContains(response, "js/live_filters.js")
+                self.assertContains(response, "type=\"submit\"")
+                self.assertContains(response, f'data-live-results="{results_key}"')
+
+
 class ProductoDetalleTests(TestCase):
     def setUp(self):
+        configure_roles()
         self.user_model = get_user_model()
         self.owner = self.user_model.objects.create_user(
             username="product-owner",
@@ -331,6 +761,8 @@ class ProductoDetalleTests(TestCase):
             username="product-viewer",
             password="ViewerPass#1234",
         )
+        self.owner.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.other_user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
         category = CategoriaProducto.objects.create(nombre="Cuidado")
         brand = Marca.objects.create(nombre="Marca demo")
         self.product = Producto.objects.create(
@@ -377,13 +809,281 @@ class ProductoDetalleTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class ImagenProductoTests(TestCase):
+    def setUp(self):
+        configure_roles()
+        self.media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media_directory.cleanup)
+        self.media_settings = override_settings(MEDIA_ROOT=self.media_directory.name)
+        self.media_settings.enable()
+        self.addCleanup(self.media_settings.disable)
+        self.owner = get_user_model().objects.create_user(
+            username="image-product-owner",
+            password="StrongPass#1234",
+        )
+        self.owner.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        self.category = CategoriaProducto.objects.create(nombre="Cuidado con imagen")
+        self.brand = Marca.objects.create(nombre="Marca con imagen")
+        self.client.force_login(self.owner)
+
+    @staticmethod
+    def image_upload(name="producto.png", color="red"):
+        image_bytes = io.BytesIO()
+        Image.new("RGB", (80, 80), color=color).save(image_bytes, format="PNG")
+        return SimpleUploadedFile(
+            name,
+            image_bytes.getvalue(),
+            content_type="image/png",
+        )
+
+    def product_form_data(self):
+        return {
+            "sku": "IMAGE-001",
+            "nombre": "Producto con imagen",
+            "descripcion": "Descripción de producto.",
+            "categoria": str(self.category.pk),
+            "marca": str(self.brand.pk),
+            "precio": "1200.00",
+        }
+
+    def test_create_product_uploads_image_and_detail_displays_it(self):
+        response = self.client.post(
+            "/productos/nuevo/",
+            data={
+                **self.product_form_data(),
+                "imagen": self.image_upload(),
+            },
+        )
+
+        self.assertRedirects(response, "/productos/")
+        product = Producto.objects.get(sku="IMAGE-001")
+        product_image = ProductoImagen.objects.get(producto=product)
+        self.assertTrue(default_storage.exists(product_image.url))
+        self.assertTrue(product_image.principal)
+
+        detail = self.client.get(f"/productos/{product.pk}/")
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, default_storage.url(product_image.url))
+        self.assertContains(detail, 'aria-label="Imagen del producto"')
+
+    def test_edit_can_replace_and_remove_product_image(self):
+        product = Producto.objects.create(
+            categoria=self.category,
+            marca=self.brand,
+            sku="IMAGE-002",
+            nombre="Producto editable con imagen",
+        )
+        first_file = default_storage.save(
+            "productos/old-image.png",
+            self.image_upload("old-image.png"),
+        )
+        product_image = ProductoImagen.objects.create(
+            producto=product,
+            url=first_file,
+            texto_alternativo=product.nombre,
+            orden=1,
+            principal=True,
+        )
+
+        replace_response = self.client.post(
+            f"/productos/{product.pk}/editar/",
+            data={
+                **self.product_form_data(),
+                "sku": "IMAGE-002",
+                "nombre": product.nombre,
+                "imagen": self.image_upload("new-image.png", color="blue"),
+            },
+        )
+
+        self.assertRedirects(replace_response, "/productos/")
+        product_image.refresh_from_db()
+        self.assertNotEqual(product_image.url, first_file)
+        self.assertFalse(default_storage.exists(first_file))
+        self.assertTrue(default_storage.exists(product_image.url))
+
+        remove_response = self.client.post(
+            f"/productos/{product.pk}/editar/",
+            data={
+                **self.product_form_data(),
+                "sku": "IMAGE-002",
+                "nombre": product.nombre,
+                "eliminar_imagen": "on",
+            },
+        )
+
+        self.assertRedirects(remove_response, "/productos/")
+        self.assertFalse(ProductoImagen.objects.filter(pk=product_image.pk).exists())
+        self.assertFalse(default_storage.exists(product_image.url))
+
+    def test_invalid_non_image_upload_is_rejected(self):
+        response = self.client.post(
+            "/productos/nuevo/",
+            data={
+                **self.product_form_data(),
+                "imagen": SimpleUploadedFile(
+                    "not-an-image.png",
+                    b"not an image",
+                    content_type="image/png",
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"].errors.get("imagen"))
+        self.assertFalse(Producto.objects.filter(sku="IMAGE-001").exists())
+
+
+class EliminacionPermanenteProductoTests(TestCase):
+    def setUp(self):
+        configure_roles()
+        self.user = get_user_model().objects.create_user(
+            username="product-admin-delete",
+            password="StrongPass#1234",
+        )
+        self.user.groups.add(Group.objects.get(name=ADMIN_GROUP_NAME))
+        category = CategoriaProducto.objects.create(nombre="Categoría borrar producto")
+        brand = Marca.objects.create(nombre="Marca borrar producto")
+        self.product = Producto.objects.create(
+            categoria=category,
+            marca=brand,
+            sku="DELETE-001",
+            nombre="Producto para borrar",
+        )
+        self.inventory = Inventario.objects.create(nombre="Bodega borrar producto")
+        self.client.force_login(self.user)
+
+    def test_inactive_product_is_removed_from_catalog_and_stock_is_preserved(self):
+        stock = Stock.objects.get(inventario=self.inventory, producto=self.product)
+        self.product.activo = False
+        self.product.save(update_fields=["activo"])
+
+        response = self.client.post(f"/productos/{self.product.pk}/eliminar/")
+
+        self.assertRedirects(response, "/productos/")
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.activo)
+        self.assertTrue(self.product.archivado)
+        self.assertTrue(Stock.objects.filter(pk=stock.pk).exists())
+        self.assertContains(
+            self.client.get("/productos/"),
+            "No hay productos para mostrar",
+        )
+        archived_catalog = self.client.get("/productos/?estado=archivado")
+        self.assertContains(archived_catalog, self.product.nombre)
+        self.assertContains(archived_catalog, "historial conservado")
+        self.assertEqual(self.client.get(f"/productos/{self.product.pk}/").status_code, 200)
+
+    def test_active_product_must_be_deactivated_before_catalog_removal(self):
+        response = self.client.post(
+            f"/productos/{self.product.pk}/eliminar/",
+            follow=True,
+        )
+
+        self.assertContains(response, "Desactiva el producto antes de eliminarlo")
+        self.assertTrue(Producto.objects.filter(pk=self.product.pk).exists())
+
+    def test_product_price_history_is_preserved_when_removed_from_catalog(self):
+        self.product.activo = False
+        self.product.save(update_fields=["activo"])
+        price = ProductoPrecio.objects.create(producto=self.product, precio="10.00")
+
+        response = self.client.post(
+            f"/productos/{self.product.pk}/eliminar/",
+            follow=True,
+        )
+
+        self.assertContains(response, "Se conservaron sus existencias y todo su historial")
+        self.assertTrue(Producto.objects.filter(pk=self.product.pk, archivado=True).exists())
+        self.assertTrue(ProductoPrecio.objects.filter(pk=price.pk, producto=self.product).exists())
+
+    def test_stock_is_preserved_when_product_is_removed_from_catalog(self):
+        self.product.activo = False
+        self.product.save(update_fields=["activo"])
+        Stock.objects.filter(
+            inventario=self.inventory,
+            producto=self.product,
+        ).update(cantidad_actual=2)
+
+        response = self.client.post(
+            f"/productos/{self.product.pk}/eliminar/",
+            follow=True,
+        )
+
+        self.assertContains(response, "Se conservaron sus existencias")
+        self.assertTrue(Producto.objects.filter(pk=self.product.pk, archivado=True).exists())
+        self.assertEqual(
+            Stock.objects.get(inventario=self.inventory, producto=self.product).cantidad_actual,
+            2,
+        )
+
+    def test_movement_history_is_preserved_when_product_is_removed_from_catalog(self):
+        movement_type = TipoMovimiento.objects.create(nombre="Entrada archivo")
+        movement = MovimientoInventario.objects.create(
+            inventario=self.inventory,
+            usuario=self.user,
+            usuario_nombre_historico=self.user.get_username(),
+            tipo_movimiento=movement_type,
+            fecha=timezone.now(),
+            motivo="Prueba de conservación",
+        )
+        movement_detail = DetalleMovimiento.objects.create(
+            movimiento=movement,
+            producto=self.product,
+            cantidad=1,
+            stock_anterior=0,
+            stock_nuevo=1,
+        )
+        self.product.activo = False
+        self.product.save(update_fields=["activo"])
+
+        self.client.post(f"/productos/{self.product.pk}/eliminar/")
+
+        self.assertTrue(
+            DetalleMovimiento.objects.filter(
+                pk=movement_detail.pk,
+                producto=self.product,
+                movimiento=movement,
+            ).exists()
+        )
+
+    def test_archived_product_cannot_be_reactivated_or_edited(self):
+        self.product.activo = False
+        self.product.archivado = True
+        self.product.save(update_fields=["activo", "archivado"])
+
+        self.assertEqual(
+            self.client.post(f"/productos/{self.product.pk}/estado/").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(f"/productos/{self.product.pk}/editar/").status_code,
+            403,
+        )
+
+    def test_assistant_cannot_permanently_delete_products(self):
+        assistant = get_user_model().objects.create_user(
+            username="assistant-delete-denied",
+            password="StrongPass#1234",
+        )
+        assistant.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
+        self.client.force_login(assistant)
+
+        response = self.client.post(f"/productos/{self.product.pk}/eliminar/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Producto.objects.filter(pk=self.product.pk).exists())
+
+
 class StockActualEndpointTests(TestCase):
     def setUp(self):
+        configure_roles()
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
             username="stock-viewer",
             password="StrongPass#1234",
         )
+        self.user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
         self.inventory = Inventario.objects.create(nombre="Bodega test")
         category = CategoriaProducto.objects.create(nombre="Stock test")
         brand = Marca.objects.create(nombre="Marca stock")
@@ -422,11 +1122,13 @@ class StockActualEndpointTests(TestCase):
 
 class DashboardStockTests(TestCase):
     def setUp(self):
+        configure_roles()
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
             username="dashboard-viewer",
             password="StrongPass#1234",
         )
+        self.user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
         inventory = Inventario.objects.create(nombre="Bodega dashboard")
         category = CategoriaProducto.objects.create(nombre="Dashboard")
         brand = Marca.objects.create(nombre="Marca dashboard")
@@ -458,11 +1160,13 @@ class DashboardStockTests(TestCase):
 
 class ExistenciasFiltroTests(TestCase):
     def setUp(self):
+        configure_roles()
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
             username="stock-filter",
             password="StrongPass#1234",
         )
+        self.user.groups.add(Group.objects.get(name=ASSISTANT_GROUP_NAME))
         self.inventory = Inventario.objects.create(nombre="Bodega filtro")
         category = CategoriaProducto.objects.create(nombre="Filtro")
         brand = Marca.objects.create(nombre="Marca filtro")
@@ -510,16 +1214,9 @@ class RegistrarMovimientoORMTests(TestCase):
             sku="MOV-001",
             nombre="Producto movimiento",
         )
-        person = Persona.objects.create(
-            rut="11111111-1",
-            nombre="Admin",
-            apellido_paterno="Inventario",
-            email="admin-movimiento@example.com",
-        )
-        self.business_user = UsuarioNegocio.objects.create(
-            persona=person,
-            nombre_usuario="movement-user",
-            password_hash="unused",
+        self.user = get_user_model().objects.create_user(
+            username="movement-user",
+            password="StrongPass#1234",
         )
         TipoMovimiento.objects.create(nombre="Entrada")
         TipoMovimiento.objects.create(nombre="Salida")
@@ -532,7 +1229,7 @@ class RegistrarMovimientoORMTests(TestCase):
             cantidad=7,
             motivo="Reposición",
             observacion="Compra recibida",
-            nombre_usuario=self.business_user.nombre_usuario,
+            usuario=self.user,
         )
 
         stock = Stock.objects.get(
@@ -544,6 +1241,10 @@ class RegistrarMovimientoORMTests(TestCase):
         self.assertEqual(result.stock_anterior, 0)
         self.assertEqual(result.stock_nuevo, 7)
         self.assertEqual(result.movimiento.detalles.get().cantidad, 7)
+        self.assertEqual(
+            result.movimiento.usuario_nombre_historico,
+            self.user.get_username(),
+        )
 
 
 class PermisosProductoTests(SimpleTestCase):
@@ -571,20 +1272,20 @@ class PermisosProductoTests(SimpleTestCase):
         self.product = SimpleNamespace(creado_por_id=self.owner.pk)
         self.unowned_product = SimpleNamespace(creado_por_id=None)
 
-    def test_solo_creador_o_superusuario_puede_editar(self):
-        self.assertTrue(_puede_editar_producto(self.owner, self.product))
-        self.assertFalse(_puede_editar_producto(self.other_user, self.product))
-        self.assertTrue(_puede_editar_producto(self.authorized_staff, self.product))
-        self.assertTrue(_puede_editar_producto(self.superuser, self.product))
+    def test_solo_el_permiso_o_superusuario_permite_editar(self):
+        self.assertFalse(_puede_editar_producto(self.owner))
+        self.assertFalse(_puede_editar_producto(self.other_user))
+        self.assertTrue(_puede_editar_producto(self.authorized_staff))
+        self.assertTrue(_puede_editar_producto(self.superuser))
 
-    def test_productos_anteriores_sin_creador_solo_son_editables_por_superusuario(self):
-        self.assertFalse(_puede_editar_producto(self.owner, self.unowned_product))
-        self.assertTrue(_puede_editar_producto(self.authorized_staff, self.unowned_product))
-        self.assertTrue(_puede_editar_producto(self.superuser, self.unowned_product))
+    def test_productos_anteriores_sin_creador_respetan_el_permiso(self):
+        self.assertFalse(_puede_editar_producto(self.owner))
+        self.assertTrue(_puede_editar_producto(self.authorized_staff))
+        self.assertTrue(_puede_editar_producto(self.superuser))
 
     def test_acceso_de_otro_usuario_se_deniega(self):
         with self.assertRaises(PermissionDenied):
-            _verificar_permiso_producto(self.other_user, self.product)
+            _verificar_permiso_producto(self.other_user)
 
 
 class CalculoStockTests(SimpleTestCase):

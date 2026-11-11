@@ -1,9 +1,6 @@
 from datetime import timedelta
 
 from django.contrib import admin
-from django import forms
-from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 
 from .models import (
@@ -12,12 +9,10 @@ from .models import (
     Inventario,
     Marca,
     MovimientoInventario,
-    Persona,
     Producto,
     ProductoPrecio,
     Stock,
     TipoMovimiento,
-    UsuarioNegocio,
 )
 
 
@@ -114,7 +109,6 @@ class ProductoAdmin(admin.ModelAdmin):
             return super().has_change_permission(request, obj)
         return (
             request.user.is_superuser
-            or obj.creado_por_id == request.user.pk
             or request.user.has_perm("inventario.change_producto")
         )
 
@@ -143,57 +137,6 @@ class TipoMovimientoAdmin(admin.ModelAdmin):
         return False
 
 
-@admin.register(Persona)
-class PersonaAdmin(admin.ModelAdmin):
-    list_display = ("id_persona", "rut", "nombre", "apellido_paterno", "email")
-    search_fields = ("rut", "nombre", "apellido_paterno", "email")
-    actions = None
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(UsuarioNegocio)
-class UsuarioNegocioAdmin(admin.ModelAdmin):
-    class Form(forms.ModelForm):
-        class Meta:
-            model = UsuarioNegocio
-            fields = ("persona", "nombre_usuario", "activo")
-            help_texts = {
-                "nombre_usuario": (
-                    "Debe coincidir exactamente con el nombre de usuario "
-                    "de la cuenta creada en Autenticación > Usuarios."
-                ),
-            }
-
-        def clean_nombre_usuario(self):
-            nombre_usuario = self.cleaned_data["nombre_usuario"].strip()
-            if not self.instance.pk and not get_user_model().objects.filter(
-                username=nombre_usuario,
-                is_active=True,
-            ).exists():
-                raise forms.ValidationError(
-                    "Crea primero esta cuenta en Autenticación > Usuarios."
-                )
-            return nombre_usuario
-
-    form = Form
-    list_display = ("id_usuario", "nombre_usuario", "persona", "activo")
-    search_fields = ("nombre_usuario", "persona__rut", "persona__nombre")
-    list_filter = ("activo",)
-    exclude = ("password_hash",)
-    readonly_fields = ("fecha_registro", "ultimo_acceso")
-    actions = None
-
-    def save_model(self, request, obj, form, change):
-        if not change:
-            obj.password_hash = make_password(None)
-        super().save_model(request, obj, form, change)
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
 class SoloLecturaAdmin(admin.ModelAdmin):
     actions = None
 
@@ -217,9 +160,17 @@ class ProductoPrecioAdmin(SoloLecturaAdmin):
 
 @admin.register(MovimientoInventario)
 class MovimientoInventarioAdmin(SoloLecturaAdmin):
-    list_display = ("id_movimiento", "fecha", "inventario", "usuario", "tipo_movimiento", "motivo")
+    list_display = (
+        "id_movimiento",
+        "fecha",
+        "inventario",
+        "usuario_nombre_historico",
+        "usuario",
+        "tipo_movimiento",
+        "motivo",
+    )
     list_filter = ("tipo_movimiento", "inventario", "fecha")
-    search_fields = ("motivo", "usuario__nombre_usuario")
+    search_fields = ("motivo", "usuario__username", "usuario_nombre_historico")
     list_select_related = ("inventario", "usuario", "tipo_movimiento")
 
 

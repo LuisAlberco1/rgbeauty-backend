@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de accesos{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Historial de accesos</h1>
+        <p>Revisa los inicios de sesión, cierres y sesiones que siguen activas.</p>
+    </div>
+    <a href="{% url 'inventario:cuenta' %}" class="button button-secondary">Volver a Mi cuenta</a>
+</section>
+
+<section class="panel">
+    <p class="panel-subtitle">Sesiones activas ahora: <strong>{{ sesiones_activas }}</strong></p>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Cuenta</th>
+                    <th>Inicio de sesión</th>
+                    <th>Cierre de sesión</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for evento in eventos %}
+                <tr>
+                    <td>{{ evento.nombre_usuario }}</td>
+                    <td>{{ evento.inicio|date:"d/m/Y H:i:s" }}</td>
+                    <td>{{ evento.cierre|date:"d/m/Y H:i:s"|default:"—" }}</td>
+                    <td>
+                        {% if evento.sesion_activa %}
+                            Activa
+                        {% elif evento.cierre %}
+                            Cerrada
+                        {% else %}
+                            Sin sesión vigente
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <strong>Aún no hay inicios de sesión registrados</strong>
+                            <p>Los nuevos accesos aparecerán aquí.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if eventos.has_other_pages %}
+    <div class="filter-actions">
+        {% if eventos.has_previous %}
+            <a class="button button-secondary" href="?page={{ eventos.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ eventos.number }} de {{ eventos.paginator.num_pages }}</span>
+        {% if eventos.has_next %}
+            <a class="button button-secondary" href="?page={{ eventos.next_page_number }}">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

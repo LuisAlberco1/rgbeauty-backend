@@ -28,64 +28,82 @@
 
             <nav class="sidebar-nav">
                 <a href="{% url 'inventario:cuenta' %}"
-                class="nav-link {% if request.resolver_match.url_name == 'cuenta' or request.resolver_match.url_name == 'cambiar_contrasena' %}active{% endif %}">
+                class="nav-link {% if request.resolver_match.url_name == 'cuenta' or request.resolver_match.url_name == 'cambiar_contrasena' or request.resolver_match.url_name == 'historial_accesos' %}active{% endif %}">
                     <span class="nav-icon">♙</span>
                     <span>Mi cuenta</span>
                 </a>
 
+                {% if user.is_superuser or perms.inventario.manage_team_accounts %}
+                <a href="{% url 'inventario:cuentas_equipo' %}"
+                class="nav-link {% if request.resolver_match.url_name == 'cuentas_equipo' or request.resolver_match.url_name == 'cuenta_equipo_nueva' or request.resolver_match.url_name == 'cuenta_equipo_editar' %}active{% endif %}">
+                    <span class="nav-icon">♧</span>
+                    <span>Equipo y permisos</span>
+                </a>
+                {% endif %}
+
+                {% if perms.inventario.view_stock %}
                 <a href="{% url 'inventario:dashboard' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                     <span class="nav-icon">⌂</span>
                     <span>Inicio</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.view_producto %}
                 <a href="{% url 'inventario:productos_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'productos_lista' %}active{% endif %}">
                     <span class="nav-icon">▤</span>
                     <span>Catálogo de productos</span>
                 </a>
+                {% endif %}
 
-                <a href="{% url 'inventario:mis_productos' %}"
-                class="nav-link {% if request.resolver_match.url_name == 'mis_productos' %}active{% endif %}">
-                    <span class="nav-icon">♙</span>
-                    <span>Mis productos</span>
-                </a>
-
+                {% if perms.inventario.view_categoriaproducto %}
                 <a href="{% url 'inventario:categorias_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'categorias_lista' or request.resolver_match.url_name == 'categoria_form' or request.resolver_match.url_name == 'categoria_editar' %}active{% endif %}">
                     <span class="nav-icon">▧</span>
                     <span>Categorías</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.view_marca %}
                 <a href="{% url 'inventario:marcas_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'marcas_lista' or request.resolver_match.url_name == 'marca_form' or request.resolver_match.url_name == 'marca_editar' %}active{% endif %}">
                     <span class="nav-icon">◇</span>
                     <span>Marcas</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.view_stock %}
                 <a href="{% url 'inventario:stock_lista' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'stock_lista' %}active{% endif %}">
                     <span class="nav-icon">▦</span>
                     <span>Existencias</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.register_stock_movement %}
                 <a href="{% url 'inventario:movimiento_form' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'movimiento_form' %}active{% endif %}">
                     <span class="nav-icon">↗</span>
                     <span>Registrar entrada / salida</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.adjust_stock %}
                 <a href="{% url 'inventario:ajustes_stock' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'ajustes_stock' %}active{% endif %}">
                     <span class="nav-icon">⚙</span>
                     <span>Ajustar existencias</span>
                 </a>
+                {% endif %}
 
+                {% if perms.inventario.view_movimientoinventario %}
                 <a href="{% url 'inventario:movimientos_historial' %}"
                 class="nav-link {% if request.resolver_match.url_name == 'movimientos_historial' %}active{% endif %}">
                     <span class="nav-icon">↻</span>
                     <span>Historial</span>
                 </a>
+                {% endif %}
             </nav>
             {% else %}
             <nav class="sidebar-nav">
@@ -135,7 +153,7 @@
                                 Sesión no iniciada
                             {% endif %}
                         </strong>
-                        <small>Panel de administración</small>
+                        <small>Aplicación de inventario</small>
                     </div>
 
                     {% if user.is_authenticated %}
@@ -173,6 +191,7 @@
 
     </div>
 
+    <script src="{% static 'js/live_filters.js' %}" defer></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

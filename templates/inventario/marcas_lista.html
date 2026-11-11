@@ -18,7 +18,7 @@
 <section class="panel">
     <h2>Catálogo de marcas</h2>
     <p class="panel-subtitle">Las marcas desactivadas se conservan y no aparecen en los selectores de productos.</p>
-    <form method="get" class="brand-filters">
+    <form method="get" class="brand-filters" data-live-filter>
         <div class="form-group">
             <label for="buscar">Buscar marca</label>
             <input type="search" id="buscar" name="buscar" value="{{ buscar }}" placeholder="Nombre o descripción">
@@ -34,11 +34,12 @@
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Buscar</button>
             <a href="{% url 'inventario:marcas_lista' %}" class="button button-secondary">Limpiar</a>
+            <span data-live-status aria-live="polite"></span>
         </div>
     </form>
 </section>
 
-<section class="panel brands-table-panel">
+<section class="panel brands-table-panel" data-live-results="brands">
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -58,6 +59,12 @@
                                 {% if marca.activo %}Desactivar{% else %}Activar{% endif %}
                             </button>
                         </form>
+                        {% if perms.inventario.delete_marca or user.is_superuser %}
+                        <form method="post" action="{% url 'inventario:marca_eliminar' marca.pk %}" onsubmit="return confirm('¿Eliminar definitivamente la marca {{ marca.nombre|escapejs }}? Solo se podrá eliminar si no tiene productos asociados.');">
+                            {% csrf_token %}
+                            <button type="submit" class="button-danger-link">Eliminar</button>
+                        </form>
+                        {% endif %}
                     </td>
                 </tr>
             {% empty %}

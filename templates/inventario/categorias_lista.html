@@ -18,7 +18,7 @@
 <section class="panel">
     <h2>Catálogo de categorías</h2>
     <p class="panel-subtitle">Las categorías desactivadas se conservan y no aparecen en los selectores de productos.</p>
-    <form method="get" class="category-filters">
+    <form method="get" class="category-filters" data-live-filter>
         <div class="form-group">
             <label for="buscar">Buscar categoría</label>
             <input type="search" id="buscar" name="buscar" value="{{ buscar }}" placeholder="Nombre o descripción">
@@ -34,11 +34,12 @@
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Buscar</button>
             <a href="{% url 'inventario:categorias_lista' %}" class="button button-secondary">Limpiar</a>
+            <span data-live-status aria-live="polite"></span>
         </div>
     </form>
 </section>
 
-<section class="panel categories-table-panel">
+<section class="panel categories-table-panel" data-live-results="categories">
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -58,6 +59,12 @@
                                 {% if categoria.activo %}Desactivar{% else %}Activar{% endif %}
                             </button>
                         </form>
+                        {% if perms.inventario.delete_categoriaproducto or user.is_superuser %}
+                        <form method="post" action="{% url 'inventario:categoria_eliminar' categoria.pk %}" onsubmit="return confirm('¿Eliminar definitivamente la categoría {{ categoria.nombre|escapejs }}? Solo se podrá eliminar si no tiene productos asociados.');">
+                            {% csrf_token %}
+                            <button type="submit" class="button-danger-link">Eliminar</button>
+                        </form>
+                        {% endif %}
                     </td>
                 </tr>
             {% empty %}

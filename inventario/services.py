@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.db import transaction
 from django.utils import timezone
 
@@ -10,7 +12,6 @@ from .models import (
     Producto,
     Stock,
     TipoMovimiento,
-    UsuarioNegocio,
 )
 
 MAX_STOCK = 2_147_483_647
@@ -77,7 +78,7 @@ def registrar_movimiento_stock(
     cantidad: int,
     motivo: str,
     observacion: str,
-    nombre_usuario: str,
+    usuario: AbstractUser,
 ) -> ResultadoMovimiento:
     _validar_tipo_y_cantidad(tipo, cantidad)
 
@@ -95,17 +96,15 @@ def registrar_movimiento_stock(
     except Producto.DoesNotExist as exc:
         raise MovimientoStockError("El producto seleccionado no está activo.") from exc
 
+    User = get_user_model()
     try:
-        usuario = UsuarioNegocio.objects.only(
-            "id_usuario", "nombre_usuario", "activo"
-        ).select_for_update().get(
-            nombre_usuario=nombre_usuario,
-            activo=True,
+        usuario = User.objects.select_for_update().get(
+            pk=usuario.pk,
+            is_active=True,
         )
-    except UsuarioNegocio.DoesNotExist as exc:
+    except User.DoesNotExist as exc:
         raise MovimientoStockError(
-            "Tu cuenta no está vinculada a un usuario activo del sistema de negocio. "
-            "Contacta al administrador para habilitarla."
+            "La cuenta que registra el movimiento no está activa."
         ) from exc
 
     try:
@@ -130,6 +129,7 @@ def registrar_movimiento_stock(
     movimiento = MovimientoInventario.objects.create(
         inventario=inventario,
         usuario=usuario,
+        usuario_nombre_historico=usuario.get_username(),
         tipo_movimiento=tipo_movimiento,
         fecha=timezone.now(),
         motivo=motivo,

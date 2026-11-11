@@ -60,7 +60,7 @@ Antes de instalar el proyecto, cada integrante debe disponer de:
 - Visual Studio Code u otro editor de código.
 - Acceso al repositorio de GitHub.
 
-Se recomienda utilizar Windows PowerShell para seguir los comandos de esta documentación. Los comandos de activación del entorno virtual pueden variar en otros sistemas operativos.
+Los comandos de esta documentación están escritos para Símbolo del sistema de Windows (CMD).
 
 ### 3.1. Información importante
 
@@ -74,9 +74,9 @@ Para trabajar en paralelo, cada integrante puede utilizar una base de datos loca
 
 ### 4.1. Clonar el repositorio
 
-Desde PowerShell, ejecutar:
+Desde CMD, ejecutar:
 
-```powershell
+```cmd
 git clone https://github.com/skyiwii/Sistema-RG-Beauty.git
 cd Sistema-RG-Beauty
 ```
@@ -89,7 +89,7 @@ https://github.com/skyiwii/Sistema-RG-Beauty
 
 Dentro de la carpeta del proyecto:
 
-```powershell
+```cmd
 python -m venv .venv
 ```
 
@@ -97,21 +97,19 @@ El entorno virtual permite instalar las dependencias del proyecto de manera aisl
 
 ### 4.3. Activar el entorno virtual
 
-En Windows PowerShell:
+En CMD:
 
-```powershell
-.\.venv\Scripts\Activate.ps1
+```cmd
+.venv\Scripts\activate.bat
 ```
 
-Si PowerShell impide la ejecución del script de activación por la política de ejecución, se debe revisar la configuración local de PowerShell o utilizar otra terminal compatible. No es necesario modificar la política global del equipo para trabajar con el proyecto.
-
-Una vez activado, la terminal normalmente mostrará `(.venv)` al comienzo de la línea.
+Una vez activado, la terminal normalmente mostrará `(.venv)` al comienzo de la línea. Si el entorno ya existe, no es necesario volver a crearlo.
 
 ### 4.4. Instalar las dependencias
 
 Actualizar pip e instalar las dependencias:
 
-```powershell
+```cmd
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
@@ -128,8 +126,9 @@ El repositorio incluye `.env.example` como plantilla de configuración.
 
 Crear el archivo local ejecutando:
 
-```powershell
-Copy-Item .env.example .env
+```cmd
+copy .env.example .env
+notepad .env
 ```
 
 Si ya existe un `.env`, no es necesario sobrescribirlo. Se deben conservar las credenciales locales existentes y comprobar que sus variables estén correctamente configuradas.
@@ -219,14 +218,14 @@ El esquema de negocio contiene 31 tablas y contempla las siguientes áreas:
 - `horario`
 - `horario_usuario`
 
-**Usuarios, roles y permisos del negocio**
-- `usuario`
-- `usuario_rol`
-- `rol`
-- `rol_permiso`
-- `permiso`
+**Autenticación y autorización**
+- Usuarios: modelo de autenticación de Django.
+- Roles: grupos de Django.
+- Permisos: permisos estándar y personalizados de Django.
+- Nombre, apellidos y correo del equipo se guardan directamente en la cuenta Django.
+- `persona` se conserva como tabla de datos de clientes y direcciones; ya no se usa como perfil de las cuentas del equipo.
 
-Las tablas se relacionan mediante claves foráneas para representar dependencias entre entidades. La estructura validada del esquema de prueba contiene 35 claves foráneas.
+El archivo SQL de negocio aún contiene las tablas heredadas de usuarios y roles para facilitar la actualización de bases antiguas. La migración `0007_use_django_accounts` transfiere sus referencias y asignaciones a Django y elimina esas tablas. La migración `0008_account_access_history` conserva la tabla `persona` porque clientes y direcciones dependen de ella, pero elimina su vínculo de perfil con las cuentas del equipo. Las tablas `venta`, `reserva` y `horario_usuario` conservan sus relaciones con la cuenta de Django.
 
 Los nombres anteriores describen las entidades del modelo SQL. No implican que todos los formularios, operaciones CRUD, servicios o procesos asociados estén terminados en Django.
 
@@ -245,6 +244,8 @@ El script de instalación contiene instrucciones para seleccionar el esquema `rg
 
 No se deben importar ambos archivos SQL uno después del otro. El archivo de esquema de negocio es el procedimiento recomendado para preparar la estructura de las tablas de RG Beauty.
 
+Las imágenes de productos se guardan como archivos bajo `MEDIA_ROOT` (por defecto, la carpeta `media/` del proyecto); la base de datos conserva la ruta en `producto_imagen`. En una instalación desplegada, el responsable técnico debe configurar el servidor para servir y respaldar también esa carpeta.
+
 **Precaución:** no ejecutar scripts de instalación repetidamente sobre una base con información existente. Antes de importar un esquema, comprobar el destino seleccionado en MySQL Workbench.
 
 ### 6.4. Tablas internas de Django
@@ -259,11 +260,11 @@ En una instalación nueva, las tablas internas de Django se crean mediante el si
 
 El proyecto incluye migraciones para las tablas del inventario y usa Django ORM para acceder a ellas. Primero se debe importar el esquema de negocio indicado arriba y configurar la conexión. Como ese esquema ya contiene algunas tablas del inventario, se debe marcar la migración inicial como aplicada si sus tablas ya existen:
 
-```powershell
+```cmd
 python manage.py migrate --fake-initial
 ```
 
-Después, Django ejecutará las migraciones restantes, incluida la actualización de la tabla `stock`. En bases de datos que ya tienen migraciones aplicadas, basta con ejecutar `python manage.py migrate`. No se deben importar nuevamente los scripts SQL sobre una base que ya contiene datos.
+Después, Django ejecutará las migraciones restantes, incluida la actualización de `stock`, el traspaso de usuarios y roles heredados a Django, y el historial de accesos. Al terminar, la tabla de negocio `usuario` ya no debe existir; la tabla `persona` permanece para no romper los datos de clientes y direcciones. Para cuentas antiguas solo puede recuperarse el último acceso que Django ya conocía; los registros completos de inicio y cierre comienzan después de aplicar la migración. Las claves de sesión se guardan como hashes. En bases de datos que ya tienen migraciones aplicadas, basta con ejecutar `python manage.py migrate`. Antes de migrar una base con información importante, hacer una copia de seguridad. No se deben importar nuevamente los scripts SQL sobre una base que ya contiene datos.
 
 ---
 
@@ -273,7 +274,7 @@ Después de configurar `.env`, instalar las dependencias y preparar la base de d
 
 ### 7.1. Comprobar la configuración de Django
 
-```powershell
+```cmd
 python manage.py check
 ```
 
@@ -281,7 +282,7 @@ Este comando revisa aspectos de la configuración de Django. Un resultado satisf
 
 ### 7.2. Comprobar la conexión a MySQL
 
-```powershell
+```cmd
 python manage.py shell -c "from django.db import connection; connection.ensure_connection(); print('Conexión a MySQL correcta')"
 ```
 
@@ -295,28 +296,24 @@ Si aparece un error, revisar:
 
 ### 7.3. Ejecutar el servidor de desarrollo
 
-```powershell
+```cmd
 python manage.py runserver
 ```
 
 Si el servidor inicia correctamente, abrir en el navegador:
 
 - Aplicación: http://127.0.0.1:8000/
-- Administración de Django: http://127.0.0.1:8000/admin/
+- Administración técnica de Django: http://127.0.0.1:8000/admin/ (solo para personal técnico autorizado).
 
 La disponibilidad de una ruta depende de las URL y vistas implementadas en la versión actual del proyecto.
 
 Para detener el servidor, presionar `Ctrl + C` en la terminal.
 
-### 7.4. Crear un administrador de Django
+### 7.4. Preparación inicial de cuentas
 
-En una instalación nueva, después de aplicar las migraciones, crear la cuenta dueña:
+En una instalación nueva, el personal técnico aplica las migraciones y ejecuta una sola vez `python manage.py setup_inventory`. El comando prepara los roles y el inventario inicial, y solicita por terminal el usuario, correo y contraseña de la dueña. La cuenta creada es Administradora de la aplicación, no superusuario ni miembro de Django Admin.
 
-```powershell
-python manage.py createsuperuser
-```
-
-La cuenta de Django permite entrar a `/admin/`. Para registrar movimientos también debe existir el usuario de negocio con el mismo nombre de usuario. Se puede crear desde Django Admin, junto con su persona. La dueña puede crear las cuentas de las asistentes desde **Autenticación y autorización > Usuarios**.
+La clienta recibe sus credenciales y usa la aplicación normalmente; no ejecuta comandos ni necesita acceder a `/admin/`. Desde **Equipo y permisos** puede crear cuentas, asignar los roles Administradora o Asistenta y desactivarlas. Las asistentes pueden consultar el catálogo y las existencias y registrar entradas y salidas; no pueden ajustar el inventario, modificar productos ni consultar auditorías. La sección `/admin/` se reserva para mantenimiento técnico autorizado.
 
 ---
 
@@ -446,7 +443,7 @@ Se recomienda que cada integrante trabaje en una rama propia y utilice Pull Requ
 
 Antes de comenzar una tarea:
 
-```powershell
+```cmd
 git switch main
 git pull origin main
 ```
@@ -457,13 +454,13 @@ Si existen cambios locales sin guardar, resolverlos antes de cambiar de rama o a
 
 Crear una rama descriptiva para la tarea:
 
-```powershell
+```cmd
 git switch -c feature/nombre-de-la-tarea
 ```
 
 Ejemplos:
 
-```powershell
+```cmd
 git switch -c feature/gestion-productos
 git switch -c feature/consulta-stock
 git switch -c feature/movimientos
@@ -476,7 +473,7 @@ Cada ejemplo representa una rama alternativa. No es necesario ejecutarlos todos.
 
 Antes de registrar los archivos:
 
-```powershell
+```cmd
 git status
 git diff
 ```
@@ -487,13 +484,13 @@ Comprobar que los cambios correspondan a la tarea y que no incluyan archivos loc
 
 Añadir los archivos necesarios:
 
-```powershell
+```cmd
 git add archivo_o_carpeta
 ```
 
 Crear el commit:
 
-```powershell
+```cmd
 git commit -m "Descripción breve del cambio"
 ```
 
@@ -501,7 +498,7 @@ Los mensajes deben describir el propósito del cambio de forma clara.
 
 ### 11.5. Publicar la rama
 
-```powershell
+```cmd
 git push -u origin feature/nombre-de-la-tarea
 ```
 
@@ -543,7 +540,7 @@ Si una contraseña o credencial se publica accidentalmente, no basta con elimina
 
 Verificar la instalación:
 
-```powershell
+```cmd
 python --version
 ```
 
@@ -553,8 +550,8 @@ Si el comando no funciona, revisar que Python esté instalado y disponible en el
 
 Comprobar que exista `.venv` y que el comando se ejecute desde la carpeta raíz del proyecto:
 
-```powershell
-.\.venv\Scripts\Activate.ps1
+```cmd
+.venv\Scripts\activate.bat
 ```
 
 Si no existe el entorno virtual, crearlo nuevamente con `python -m venv .venv`.
@@ -591,79 +588,63 @@ Los siguientes comandos son los más utilizados durante el desarrollo.
 
 **Comprobar la versión de Python:**
 
-```powershell
+```cmd
 python --version
 ```
 
 **Instalar dependencias:**
 
-```powershell
+```cmd
 python -m pip install -r requirements.txt
 ```
 
 **Comprobar la configuración de Django:**
 
-```powershell
+```cmd
 python manage.py check
 ```
 
 **Comprobar la conexión a MySQL:**
 
-```powershell
+```cmd
 python manage.py shell -c "from django.db import connection; connection.ensure_connection(); print('Conexión a MySQL correcta')"
 ```
 
 **Aplicar migraciones de Django en una instalación preparada:**
 
-```powershell
+```cmd
 python manage.py migrate
 ```
 
-**Preparar el inventario inicial y sus tipos de movimiento:**
+**Preparar una instalación nueva (después de las migraciones):**
 
-```powershell
-python manage.py seed_stock
+```cmd
+python manage.py setup_inventory
 ```
 
-El comando es idempotente: crea o actualiza los tipos de movimiento y prepara un inventario activo si aún no existe.
-
-**Crear el grupo con permiso para editar productos:**
-
-```powershell
-python manage.py setup_inventory_permissions
-```
-
-Después, asignar la dueña y las asistentes al grupo **Personal de inventario** desde Django Admin > Autenticación y autorización > Usuarios.
-
-**Crear un administrador de Django:**
-
-```powershell
-python manage.py createsuperuser
-```
+El comando configura los roles **Administradora** y **Asistenta**, prepara un inventario activo y los tipos de movimiento necesarios y, si aún no existe una Administradora activa, solicita las credenciales para crear la cuenta de la dueña. Es idempotente para los datos iniciales: volver a ejecutarlo conserva la cuenta Administradora activa y actualiza la configuración base. Debe ejecutarlo el instalador o personal técnico, no la clienta.
 
 **Ejecutar las pruebas del módulo:**
 
-```powershell
+```cmd
 python manage.py test inventario.tests
 ```
 
 **Iniciar el servidor local:**
 
-```powershell
+```cmd
 python manage.py runserver
 ```
 
-`link_stock_user` es una alternativa por terminal para vincular una cuenta Django con el usuario de negocio; normalmente se puede hacer desde Django Admin. `seed` carga una categoría inicial de ejemplo y no es necesario para el funcionamiento normal. Evita usar `seed --clear` en una base con datos, porque elimina todas las categorías.
-
 **Consultar el estado de Git:**
 
-```powershell
+```cmd
 git status
 ```
 
 **Consultar las ramas locales:**
 
-```powershell
+```cmd
 git branch
 ```
 
@@ -709,13 +690,17 @@ Se agregó la funcionalidad de productos sobre las tablas MySQL existentes (`pro
 
 - `inventario/models.py`: modelos Django mapeados a las tablas existentes.
 - `inventario/forms.py`: formulario con campos obligatorios, precio no negativo y validación de SKU duplicado.
-- `inventario/views.py`: listado con búsqueda y filtros, registro, edición, actualización de precio y desactivación segura.
-- `inventario/urls.py`: rutas para listado, nuevo, editar y desactivar.
+- `inventario/models.py`: modelo de imagen principal vinculado a la tabla de negocio `producto_imagen`.
+- `inventario/views.py`: listado con búsqueda y filtros, registro, edición, actualización de precio, activación/desactivación y retiro definitivo del catálogo conservando historial y existencias.
+- `inventario/urls.py`: rutas para listado, nuevo, editar, cambiar estado y retirar productos del catálogo.
 - `inventario/admin.py`: modelos disponibles en el administrador de Django.
 - `templates/inventario/productos_lista.html`: catálogo conectado a los productos de la base de datos.
 - `templates/inventario/producto_form.html`: formulario real para crear y editar.
+- `templates/inventario/producto_detalle.html`: detalle con la imagen del producto junto a la información principal.
 - `static/css/inventario/productos.css`: estilos del catálogo, filtros, tabla, mensajes y estados.
 - `static/css/inventario/producto_form.css`: estilos del formulario.
+
+Al retirar definitivamente un producto se oculta del catálogo operativo y se impide reactivarlo o usarlo en nuevos movimientos. El registro del producto se conserva internamente para no perder sus vínculos con ventas, precios, existencias y movimientos históricos.
 
 ### Cómo probarlo
 

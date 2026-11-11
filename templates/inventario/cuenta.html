@@ -22,8 +22,8 @@
             <strong>{{ user.username }}</strong>
         </div>
         <div>
-            <span class="account-label">Productos registrados por ti</span>
-            <strong>{{ total_productos }}</strong>
+            <span class="account-label">Tipo de cuenta</span>
+            <strong>{{ rol_cuenta }}</strong>
         </div>
     </div>
 
@@ -43,4 +43,44 @@
         </div>
     </form>
 </section>
+
+{% if puede_administrar_cuentas %}
+<section class="panel">
+    <div class="page-heading">
+        <div>
+            <h2>Administración del equipo</h2>
+            <p>Solo tú puedes administrar las cuentas y revisar sus accesos.</p>
+        </div>
+    </div>
+    <div class="account-summary">
+        <div>
+            <span class="account-label">Cuentas de asistentes activas</span>
+            <strong>{{ cuentas_activas }}</strong>
+        </div>
+    </div>
+    <div class="filter-actions">
+        <a href="{% url 'inventario:cuentas_equipo' %}" class="button button-primary">Gestionar cuentas</a>
+        {% if puede_ver_historial_accesos %}
+        <a href="{% url 'inventario:historial_accesos' %}" class="button button-secondary">Ver historial de accesos</a>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+{% if puede_activar_cuenta_administradora %}
+<section class="panel">
+    <h2>Preparar tu cuenta para el uso diario</h2>
+    <p class="panel-subtitle">
+        Esta cuenta todavía tiene permisos técnicos de Django. Puedes convertirla en
+        Administradora de la aplicación para gestionar la tienda desde aquí sin
+        necesitar acceso a Django Admin.
+    </p>
+    <form method="post" action="{% url 'inventario:activar_cuenta_administradora' %}">
+        {% csrf_token %}
+        <button type="submit" class="button button-primary">
+            Usar esta cuenta como Administradora
+        </button>
+    </form>
+</section>
+{% endif %}
 {% endblock %}

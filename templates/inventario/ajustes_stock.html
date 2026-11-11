@@ -38,9 +38,6 @@
     {% if not configuracion_lista %}
     <div class="message error">Falta configurar un inventario activo, el tipo de ajuste o productos activos. Ejecuta <code>python manage.py seed_stock</code> y revisa el catálogo de productos.</div>
     {% endif %}
-    {% if not responsable_configurado %}
-    <div class="message error">Tu usuario de Django debe tener un usuario activo con el mismo nombre en la tabla de usuarios del negocio antes de registrar ajustes.</div>
-    {% endif %}
     <section
         class="stock-preview"
         data-stock-preview

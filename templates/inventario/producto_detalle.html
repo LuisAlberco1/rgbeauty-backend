@@ -15,7 +15,10 @@
     </div>
     <div class="page-actions">
         <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Volver al catálogo</a>
-        {% if puede_editar %}
+        {% if puede_registrar_movimiento and not producto.archivado %}
+        <a href="{% url 'inventario:movimiento_form' %}?producto={{ producto.pk }}" class="button button-secondary">Registrar entrada o salida</a>
+        {% endif %}
+        {% if puede_editar and not producto.archivado %}
         <a href="{% url 'inventario:producto_editar' producto.pk %}" class="button button-primary">Editar producto</a>
         {% endif %}
     </div>
@@ -25,41 +28,97 @@
     <div class="product-detail-heading">
         <h2>Información del producto</h2>
         <span class="status-badge {% if producto.activo %}status-active{% else %}status-inactive{% endif %}">
-            {% if producto.activo %}Activo{% else %}Inactivo{% endif %}
+            {% if producto.archivado %}Retirado del catálogo{% elif producto.activo %}Activo{% else %}Inactivo{% endif %}
         </span>
     </div>
+    {% if producto.archivado %}<p class="panel-subtitle">Este producto ya no forma parte del catálogo operativo. Sus existencias y registros históricos se conservan.</p>{% endif %}
 
-    <dl class="product-detail-grid">
-        <div>
-            <dt>Código SKU</dt>
-            <dd>{{ producto.sku }}</dd>
-        </div>
-        <div>
-            <dt>Categoría</dt>
-            <dd>{{ producto.categoria.nombre }}</dd>
-        </div>
-        <div>
-            <dt>Marca</dt>
-            <dd>{{ producto.marca.nombre }}</dd>
-        </div>
-        <div>
-            <dt>Precio actual</dt>
-            <dd>{% if precio_actual %}${{ precio_actual.precio|floatformat:2 }}{% else %}Sin precio registrado{% endif %}</dd>
-        </div>
-        <div>
-            <dt>Creado por</dt>
-            <dd>{% if producto.creado_por %}{{ producto.creado_por.get_username }}{% else %}Sin asignar{% endif %}</dd>
-        </div>
-        <div>
-            <dt>Fecha de creación</dt>
-            <dd>{{ producto.fecha_creacion|date:"d/m/Y H:i" }}</dd>
-        </div>
-        <div class="product-detail-description">
-            <dt>Descripción</dt>
-            <dd>{% if producto.descripcion %}{{ producto.descripcion|linebreaksbr }}{% else %}Sin descripción{% endif %}</dd>
-        </div>
-    </dl>
+    <div class="product-detail-layout">
+        <dl class="product-detail-grid">
+            <div>
+                <dt>Código SKU</dt>
+                <dd>{{ producto.sku }}</dd>
+            </div>
+            <div>
+                <dt>Categoría</dt>
+                <dd>{{ producto.categoria.nombre }}</dd>
+            </div>
+            <div>
+                <dt>Marca</dt>
+                <dd>{{ producto.marca.nombre }}</dd>
+            </div>
+            <div>
+                <dt>Precio actual</dt>
+                <dd>{% if precio_actual %}${{ precio_actual.precio|floatformat:2 }}{% else %}Sin precio registrado{% endif %}</dd>
+            </div>
+            <div>
+                <dt>Creado por</dt>
+                <dd>{% if producto.creado_por %}{{ producto.creado_por.get_username }}{% else %}Sin asignar{% endif %}</dd>
+            </div>
+            <div>
+                <dt>Fecha de creación</dt>
+                <dd>{{ producto.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+            </div>
+            <div class="product-detail-description">
+                <dt>Descripción</dt>
+                <dd>{% if producto.descripcion %}{{ producto.descripcion|linebreaksbr }}{% else %}Sin descripción{% endif %}</dd>
+            </div>
+        </dl>
+        <aside class="product-detail-image" aria-label="Imagen del producto">
+            {% if imagen_producto %}
+            <img src="{{ imagen_producto.image_src }}" alt="{{ imagen_producto.texto_alternativo|default:producto.nombre }}">
+            {% else %}
+            <div class="product-image-empty">Este producto no tiene imagen.</div>
+            {% endif %}
+        </aside>
+    </div>
 </section>
+
+{% if puede_ver_existencias %}
+<section class="panel">
+    <div class="product-detail-heading">
+        <div>
+            <h2>Existencias por inventario</h2>
+            <p class="panel-subtitle">Stock total en inventarios activos: <strong>{{ stock_total }}</strong> unidades.</p>
+        </div>
+        <a href="{% url 'inventario:stock_lista' %}?buscar={{ producto.sku|urlencode }}" class="button button-secondary">Ver todas las existencias</a>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Inventario</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for existencia in existencias %}
+                <tr>
+                    <td>{{ existencia.inventario.nombre }}</td>
+                    <td>{{ existencia.cantidad_actual }}</td>
+                    <td>
+                        {% if existencia.cantidad_actual == 0 %}
+                            Agotado
+                        {% elif existencia.cantidad_actual <= low_stock_threshold %}
+                            Stock bajo
+                        {% else %}
+                            Disponible
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">
+                        <div class="empty-state">Este producto no tiene existencias en inventarios activos.</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
 
 <section class="panel product-price-history-panel">
     <h2>Historial de precios</h2>

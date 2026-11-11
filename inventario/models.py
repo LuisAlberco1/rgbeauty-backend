@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
- 
+from django.utils import timezone
+
 
 class CategoriaProducto(models.Model):
     """Modelo de lectura/escritura para la tabla existente categoria_producto."""
@@ -59,6 +60,7 @@ class Producto(models.Model):
         blank=True,
     )
     activo = models.BooleanField(default=True)
+    archivado = models.BooleanField(default=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -69,6 +71,40 @@ class Producto(models.Model):
 
     def __str__(self):
         return f"{self.sku} - {self.nombre}"
+
+
+class ProductoImagen(models.Model):
+    id_imagen = models.AutoField(primary_key=True)
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.PROTECT,
+        db_column="id_producto",
+        related_name="imagenes",
+    )
+    url = models.CharField(max_length=500)
+    texto_alternativo = models.CharField(max_length=255, blank=True, null=True)
+    orden = models.PositiveIntegerField(default=1)
+    principal = models.BooleanField(default=False)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "producto_imagen"
+        ordering = ["orden"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["producto", "orden"],
+                name="id_producto",
+            ),
+        ]
+
+    @property
+    def image_src(self):
+        from django.core.files.storage import default_storage
+
+        return default_storage.url(self.url)
+
+    def __str__(self):
+        return self.texto_alternativo or f"Imagen de {self.producto.nombre}"
 
 
 class ProductoPrecio(models.Model):
@@ -150,42 +186,6 @@ class TipoMovimiento(models.Model):
         return self.nombre
 
 
-class Persona(models.Model):
-    id_persona = models.AutoField(primary_key=True)
-    rut = models.CharField(max_length=12, unique=True)
-    nombre = models.CharField(max_length=100)
-    apellido_paterno = models.CharField(max_length=100)
-    apellido_materno = models.CharField(max_length=100, blank=True, null=True)
-    fecha_nacimiento = models.DateField(blank=True, null=True)
-    telefono = models.CharField(max_length=20, blank=True, null=True)
-    email = models.EmailField(max_length=150, unique=True)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "persona"
-
-
-class UsuarioNegocio(models.Model):
-    id_usuario = models.AutoField(primary_key=True)
-    persona = models.OneToOneField(
-        Persona,
-        on_delete=models.PROTECT,
-        db_column="id_persona",
-        related_name="usuario_negocio",
-    )
-    nombre_usuario = models.CharField(max_length=50, unique=True)
-    password_hash = models.CharField(max_length=255)
-    activo = models.BooleanField(default=True)
-    fecha_registro = models.DateTimeField(auto_now_add=True)
-    ultimo_acceso = models.DateTimeField(blank=True, null=True)
-
-    class Meta:
-        db_table = "usuario"
-
-    def __str__(self):
-        return self.nombre_usuario
-
-
 class MovimientoInventario(models.Model):
     id_movimiento = models.AutoField(primary_key=True)
     inventario = models.ForeignKey(
@@ -195,11 +195,12 @@ class MovimientoInventario(models.Model):
         related_name="movimientos",
     )
     usuario = models.ForeignKey(
-        UsuarioNegocio,
+        settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         db_column="id_usuario",
-        related_name="movimientos",
+        related_name="movimientos_inventario",
     )
+    usuario_nombre_historico = models.CharField(max_length=150, blank=True)
     tipo_movimiento = models.ForeignKey(
         TipoMovimiento,
         on_delete=models.PROTECT,
@@ -213,6 +214,39 @@ class MovimientoInventario(models.Model):
     class Meta:
         db_table = "movimiento_inventario"
         ordering = ["-fecha", "-id_movimiento"]
+        permissions = [
+            ("register_stock_movement", "Can register stock entries and exits"),
+            ("adjust_stock", "Can adjust stock counts"),
+        ]
+
+
+class RegistroAcceso(models.Model):
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="registros_acceso",
+        null=True,
+        blank=True,
+    )
+    nombre_usuario = models.CharField(max_length=150)
+    clave_sesion_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        blank=True,
+        null=True,
+    )
+    inicio = models.DateTimeField(default=timezone.now)
+    cierre = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ["-inicio", "-pk"]
+        permissions = [
+            ("manage_team_accounts", "Can manage team accounts and roles"),
+            ("view_access_history", "Can view account access history"),
+        ]
+
+    def __str__(self):
+        return f"{self.nombre_usuario} - {self.inicio:%Y-%m-%d %H:%M}"
 
 
 class DetalleMovimiento(models.Model):

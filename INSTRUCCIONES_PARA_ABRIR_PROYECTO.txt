@@ -1,0 +1,78 @@
+CONFIGURACION DE RG BEAUTY DESPUES DE INSTALAR DEPENDENCIAS
+==========================================================
+
+Estas instrucciones asumen que el proyecto ya esta descargado, que las
+dependencias estan instaladas y que los comandos se ejecutan desde la carpeta
+del proyecto, donde esta manage.py. Ejemplos para Windows CMD.
+
+1. CREAR Y CONFIGURAR LA BASE DE DATOS
+--------------------------------------
+Inicia MySQL Server y crea una base de datos vacia llamada rg_beauty.
+No necesitas importar un archivo SQL para ejecutar el modulo de inventario:
+las migraciones de Django crean las tablas que usa la aplicacion.
+
+Crea el archivo local de configuracion a partir de la plantilla:
+
+.env.example 
+
+Crea y Edita .env con las credenciales de MySQL de ese equipo:
+
+    DB_NAME=rg_beauty
+    DB_USER=tu_usuario_mysql
+    DB_PASSWORD=tu_contrasena_mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+
+
+2. APLICAR MIGRACIONES
+----------------------
+Con MySQL iniciado y .env configurado, ejecuta:
+
+    python manage.py migrate
+
+Esto crea las tablas de Django y las tablas utilizadas por el inventario.
+
+3. PREPARAR EL SISTEMA Y CREAR LA CUENTA INICIAL
+------------------------------------------------
+Ejecuta una vez en la instalacion inicial:
+
+    python manage.py setup_inventory
+
+Este comando configura los roles Administradora y Asistenta, prepara el
+inventario inicial y solicita por consola el usuario, correo y contrasena de
+la cuenta Administradora inicial si aun no existe una cuenta Administradora
+activa. Guarda esas credenciales para iniciar sesion en la aplicacion.
+
+El comando puede ejecutarse nuevamente sin duplicar la cuenta Administradora
+activa ni los datos iniciales. No es necesario que la dueña lo ejecute en el
+uso diario ni que use Django Admin.
+
+4. INICIAR LA APLICACION
+------------------------
+Ejecuta:
+
+    python manage.py runserver
+
+Abre http://127.0.0.1:8000/ en el navegador. Deten el servidor con Ctrl+C.
+Para volver a iniciar el sistema otro dia, basta con iniciar MySQL y ejecutar
+runserver desde la carpeta del proyecto.
+
+Si el codigo recibido incluye nuevas migraciones, aplica primero:
+
+    python manage.py migrate
+
+5. IMAGENES DE PRODUCTOS
+------------------------
+Las imagenes se guardan en la carpeta media\ del proyecto, no dentro de
+MySQL ni en Git. Para trasladar una instalacion con imagenes existentes,
+copia esa carpeta junto con un respaldo de la base de datos.
+
+SI ALGO FALLA
+-------------
+- Error de conexion: revisa que MySQL este iniciado y que los datos de .env
+  sean correctos.
+- Error al ejecutar migrate: confirma que estas en la carpeta de manage.py,
+  que las dependencias estan instaladas y que la base rg_beauty existe.
+- No importes database\esquema_negocio_rg_beauty.sql para una instalacion
+  normal del modulo de inventario. Ese esquema es para preparar tablas de
+  negocio adicionales o instalaciones heredadas; no es necesario aqui.

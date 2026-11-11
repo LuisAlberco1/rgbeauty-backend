@@ -9,23 +9,20 @@
 {% block content %}
 <section class="page-heading">
     <div>
-        <h1>{% if mis_productos %}Mis productos{% else %}Catálogo de productos{% endif %}</h1>
-        <p>{% if mis_productos %}Productos que has creado y puedes administrar.{% else %}Consulta el catálogo compartido de productos de RG Beauty.{% endif %}</p>
+        <h1>Catálogo de productos</h1>
+        <p>Consulta los productos y abre su detalle para revisar las existencias por inventario.</p>
     </div>
     <div class="page-actions">
-        {% if mis_productos %}
-        <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Ver catálogo</a>
-        {% else %}
-        <a href="{% url 'inventario:mis_productos' %}" class="button button-secondary">Mis productos</a>
-        {% endif %}
+        {% if perms.inventario.add_producto or user.is_superuser %}
         <a href="{% url 'inventario:producto_form' %}" class="button button-primary">+ Nuevo producto</a>
+        {% endif %}
     </div>
 </section>
 
 <section class="panel">
-    <h2>{% if mis_productos %}Mis productos{% else %}Catálogo compartido{% endif %}</h2>
-    <p class="panel-subtitle">Consulta, busca y organiza los productos registrados.</p>
-    <form method="get" class="product-filters">
+    <h2>Productos disponibles</h2>
+    <p class="panel-subtitle">Selecciona “Ver detalle” para consultar el stock por bodega y registrar movimientos.</p>
+    <form method="get" class="product-filters" data-live-filter>
         <div class="form-group">
             <label for="buscar">Buscar producto</label>
             <input type="search" id="buscar" name="buscar" value="{{ buscar }}" placeholder="Nombre, SKU, marca o categoría">
@@ -54,16 +51,18 @@
                 <option value="" {% if not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
                 <option value="activo" {% if estado_seleccionado == "activo" %}selected{% endif %}>Activo</option>
                 <option value="inactivo" {% if estado_seleccionado == "inactivo" %}selected{% endif %}>Inactivo</option>
+                <option value="archivado" {% if estado_seleccionado == "archivado" %}selected{% endif %}>Retirado definitivamente</option>
             </select>
         </div>
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Buscar</button>
             <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Limpiar</a>
+            <span data-live-status aria-live="polite"></span>
         </div>
     </form>
 </section>
 
-<section class="panel products-table-panel">
+<section class="panel products-table-panel" data-live-results="products">
     <div class="table-wrapper">
         <table class="data-table">
             <thead><tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Creado por</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -80,18 +79,27 @@
                         {% empty %}Sin precio{% endfor %}
                     </td>
                     <td>{% if producto.creado_por %}{{ producto.creado_por.get_username }}{% else %}Sin asignar{% endif %}</td>
-                    <td><span class="status-badge {% if producto.activo %}status-active{% else %}status-inactive{% endif %}">{% if producto.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
+                    <td><span class="status-badge {% if producto.activo %}status-active{% else %}status-inactive{% endif %}">{% if producto.archivado %}Retirado{% elif producto.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
                     <td class="actions-cell">
-                        <a href="{% url 'inventario:producto_detalle' producto.pk %}">Ver detalle</a>
-                        {% if user.is_superuser or producto.creado_por_id == user.pk or perms.inventario.change_producto %}
+                        <a href="{% url 'inventario:producto_detalle' producto.pk %}">Ver detalle y existencias</a>
+                        {% if not producto.archivado %}
+                            {% if user.is_superuser or perms.inventario.change_producto %}
                         <a href="{% url 'inventario:producto_editar' producto.pk %}">Editar</a>
-                        {% if producto.activo %}
-                        <form method="post" action="{% url 'inventario:producto_desactivar' producto.pk %}" onsubmit="return confirm('¿Deseas quitar este producto del catálogo activo? Se conservará en el historial.');">
+                        <form method="post" action="{% url 'inventario:producto_cambiar_estado' producto.pk %}" onsubmit="return confirm('{% if producto.activo %}¿Desactivar este producto? Se conservarán el stock y el historial.{% else %}¿Activar nuevamente este producto?{% endif %}');">
+                            {% csrf_token %}<button type="submit" class="{% if producto.activo %}button-danger-link{% else %}button-action-link{% endif %}">{% if producto.activo %}Desactivar{% else %}Activar{% endif %}</button>
+                        </form>
+                        {% if not producto.activo %}
+                            {% if perms.inventario.delete_producto or user.is_superuser %}
+                        <form method="post" action="{% url 'inventario:producto_eliminar' producto.pk %}" onsubmit="return confirm('¿Retirar definitivamente {{ producto.nombre|escapejs }} del catálogo? Ya no se podrá activar ni usar en nuevos movimientos. Se conservarán el stock y todos los registros históricos.');">
                             {% csrf_token %}<button type="submit" class="button-danger-link">Eliminar del catálogo</button>
                         </form>
+                            {% endif %}
                         {% endif %}
+                            {% else %}
+                        <span class="muted-action">Solo una cuenta autorizada puede editar</span>
+                            {% endif %}
                         {% else %}
-                        <span class="muted-action">Solo el creador o personal autorizado puede editar</span>
+                        <span class="muted-action">Retirado del catálogo; historial conservado</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -104,11 +112,11 @@
     {% if page_obj.paginator.num_pages > 1 %}
     <nav class="table-pagination" aria-label="Paginación del catálogo">
         {% if page_obj.has_previous %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
         {% endif %}
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.has_next %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
         {% endif %}
     </nav>
     {% endif %}

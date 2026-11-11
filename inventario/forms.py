@@ -1,5 +1,9 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
+
 from .models import (
     CategoriaProducto,
     Inventario,
@@ -8,7 +12,119 @@ from .models import (
     ProductoPrecio,
     TipoMovimiento,
 )
+from .roles import ACCOUNT_ROLE_CHOICES, ADMIN_GROUP_NAME, ASSISTANT_GROUP_NAME
 from .services import LOW_STOCK_THRESHOLD, MAX_STOCK
+
+
+class CuentaEquipoForm(forms.ModelForm):
+    role = forms.ChoiceField(
+        label="Tipo de cuenta",
+        choices=ACCOUNT_ROLE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    password1 = forms.CharField(
+        label="Contraseña",
+        required=False,
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
+    )
+    password2 = forms.CharField(
+        label="Confirmar contraseña",
+        required=False,
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
+    )
+    class Meta:
+        model = get_user_model()
+        fields = ("username", "first_name", "last_name", "email", "is_active")
+        labels = {
+            "username": "Nombre de usuario",
+            "first_name": "Nombre",
+            "last_name": "Apellido",
+            "email": "Correo electrónico",
+            "is_active": "Cuenta activa",
+        }
+        widgets = {
+            "username": forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
+            "first_name": forms.TextInput(attrs={"class": "form-control"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control"}),
+            "email": forms.EmailInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["first_name"].required = True
+        self.fields["last_name"].required = True
+        self.fields["email"].required = True
+        self.fields["role"].help_text = (
+            "La Administradora puede gestionar toda la aplicación. La Asistenta "
+            "puede consultar productos y registrar entradas y salidas."
+        )
+        if self.instance.pk:
+            self.fields["password1"].help_text = "Déjalas vacías para conservar la contraseña actual."
+            if self.instance.groups.filter(name=ADMIN_GROUP_NAME).exists():
+                self.initial["role"] = ADMIN_GROUP_NAME
+            else:
+                self.initial["role"] = ASSISTANT_GROUP_NAME
+        else:
+            self.fields["password1"].required = True
+            self.fields["password2"].required = True
+            self.initial["role"] = ASSISTANT_GROUP_NAME
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        existing = get_user_model().objects.filter(username__iexact=username)
+        if self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise forms.ValidationError("Ya existe una cuenta con ese nombre de usuario.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip()
+        existing = get_user_model().objects.filter(email__iexact=email)
+        if self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise forms.ValidationError("Ya existe una cuenta con ese correo electrónico.")
+        return email
+
+    def clean_role(self):
+        role = self.cleaned_data["role"]
+        if not Group.objects.filter(name=role).exists():
+            raise forms.ValidationError(
+                "Los roles no están configurados. Pide al administrador técnico que "
+                "ejecute setup_inventory."
+            )
+        return role
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+        if password1 or password2:
+            if password1 != password2:
+                self.add_error("password2", "Las contraseñas no coinciden.")
+            elif password1:
+                try:
+                    validate_password(password1, self.instance)
+                except forms.ValidationError as exc:
+                    self.add_error("password1", exc)
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get("password1")
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        group = Group.objects.get(name=self.cleaned_data["role"])
+        self.instance.groups.set([group])
 
 
 class PerfilForm(forms.ModelForm):
@@ -28,6 +144,8 @@ class PerfilForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["first_name"].required = True
+        self.fields["last_name"].required = True
         self.fields["email"].required = True
 
     def clean_email(self):
@@ -41,6 +159,19 @@ class PerfilForm(forms.ModelForm):
 
 
 class ProductoForm(forms.ModelForm):
+    imagen = forms.ImageField(
+        label="Imagen del producto",
+        required=False,
+        widget=forms.FileInput(attrs={
+            "accept": "image/jpeg,image/png,image/webp",
+            "class": "product-image-input",
+        }),
+        help_text="JPG, PNG o WebP; máximo 5 MB.",
+    )
+    eliminar_imagen = forms.BooleanField(
+        label="Quitar imagen actual",
+        required=False,
+    )
     precio = forms.DecimalField(
         label="Precio",
         min_value=0,
@@ -114,6 +245,24 @@ class ProductoForm(forms.ModelForm):
     def clean_descripcion(self):
         descripcion = self.cleaned_data.get("descripcion")
         return descripcion.strip() if descripcion else descripcion
+
+    def clean_imagen(self):
+        imagen = self.cleaned_data.get("imagen")
+        if imagen is None:
+            return imagen
+        if imagen.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("La imagen no puede superar los 5 MB.")
+        if getattr(imagen, "image", None) is not None:
+            image_format = imagen.image.format
+            if image_format not in {"JPEG", "PNG", "WEBP"}:
+                raise forms.ValidationError(
+                    "El formato debe ser JPG, PNG o WebP."
+                )
+            if imagen.image.width > 6000 or imagen.image.height > 6000:
+                raise forms.ValidationError(
+                    "La imagen no puede superar los 6000 píxeles por lado."
+                )
+        return imagen
 
 
 class CategoriaProductoForm(forms.ModelForm):

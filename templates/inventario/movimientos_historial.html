@@ -15,10 +15,12 @@
     </div>
 </section>
 
-{% if error %}<div class="message error">{{ error }}</div>{% endif %}
-{% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+<div data-live-results="history-error">
+    {% if error %}<div class="message error">{{ error }}</div>{% endif %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+</div>
 
-<section class="stats-grid">
+<section class="stats-grid" data-live-results="history-stats">
     <article class="stat-card highlight">
         <div class="stat-label">Movimientos registrados</div>
         <div class="stat-value">{% if total_movimientos != None %}{{ total_movimientos }}{% else %}—{% endif %}</div>
@@ -44,7 +46,7 @@
 <section class="panel history-filters-panel">
     <h2>Consultar movimientos</h2>
     <p class="panel-subtitle">Filtra por producto, tipo de movimiento y rango de fechas.</p>
-    <form method="get" class="history-filters">
+    <form method="get" class="history-filters" data-live-filter>
         {% for field in form %}
         <div class="form-group">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -55,11 +57,12 @@
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Filtrar</button>
             <a href="{% url 'inventario:movimientos_historial' %}" class="button button-secondary">Limpiar</a>
+            <span data-live-status aria-live="polite"></span>
         </div>
     </form>
 </section>
 
-<section class="panel history-table-panel">
+<section class="panel history-table-panel" data-live-results="history-results">
     <div class="history-table-heading">
         <div>
             <h2>Registro de operaciones</h2>
@@ -90,7 +93,7 @@
                         {% else %}{{ detalle.stock_anterior }} → {{ detalle.stock_nuevo }}{% endif %}
                     </td>
                     <td>{{ detalle.movimiento.motivo }}</td>
-                    <td>{{ detalle.movimiento.usuario.nombre_usuario }}</td>
+                    <td>{{ detalle.movimiento.usuario_nombre_historico|default:detalle.movimiento.usuario.username }}</td>
                 </tr>
                 {% empty %}
                 <tr>
@@ -108,11 +111,11 @@
     {% if page_obj and page_obj.paginator.num_pages > 1 %}
     <nav class="table-pagination" aria-label="Paginación del historial">
         {% if page_obj.has_previous %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
         {% endif %}
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.has_next %}
-        <a class="button button-secondary" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
+        <a class="button button-secondary" data-live-page href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>
         {% endif %}
     </nav>
     {% endif %}

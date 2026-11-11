@@ -15,10 +15,11 @@
 <section class="panel product-form-panel">
     <h2>Información del producto</h2>
     <p class="panel-subtitle">Los campos marcados con * son obligatorios. El SKU debe ser único.</p>
-    <form method="post" class="product-form" novalidate>
+    <form method="post" class="product-form" enctype="multipart/form-data" novalidate>
         {% csrf_token %}
         {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
         {% for field in form %}
+            {% if field.name != "imagen" and field.name != "eliminar_imagen" %}
             <div class="form-group">
                 <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span>*</span>{% endif %}</label>
                 
@@ -26,11 +27,44 @@
                 {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
                 {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
             </div>
+            {% endif %}
         {% endfor %}
+        <div class="form-group">
+            <label for="{{ form.imagen.id_for_label }}">{{ form.imagen.label }}</label>
+            <div class="product-image-dropzone" data-image-dropzone>
+                <input type="file" name="{{ form.imagen.name }}" id="{{ form.imagen.id_for_label }}"
+                    accept="image/jpeg,image/png,image/webp" aria-describedby="image-upload-help">
+                <strong>Arrastra una imagen hasta aquí o haz clic para seleccionarla</strong>
+                <span>JPG, PNG o WebP · máximo 5 MB</span>
+            </div>
+            <small id="image-upload-help">{{ form.imagen.help_text }}</small>
+            {% if form.imagen.errors %}<div class="form-errors">{{ form.imagen.errors }}</div>{% endif %}
+            <div class="product-image-preview" data-image-preview-container>
+                {% if imagen_producto %}
+                <img src="{{ imagen_producto.image_src }}" alt="{{ imagen_producto.texto_alternativo|default:producto.nombre }}" data-image-preview data-current-src="{{ imagen_producto.image_src }}" data-current-alt="{{ imagen_producto.texto_alternativo|default:producto.nombre }}">
+                <span data-image-placeholder hidden>No hay imagen seleccionada.</span>
+                {% else %}
+                <img alt="Vista previa de la imagen seleccionada" data-image-preview hidden>
+                <span data-image-placeholder>No hay imagen seleccionada.</span>
+                {% endif %}
+            </div>
+            {% if imagen_producto %}
+            <div class="form-group product-image-remove">
+                <label for="{{ form.eliminar_imagen.id_for_label }}">
+                    {{ form.eliminar_imagen }} {{ form.eliminar_imagen.label }}
+                </label>
+            </div>
+            {% endif %}
+            {% if form.eliminar_imagen.errors %}<div class="form-errors">{{ form.eliminar_imagen.errors }}</div>{% endif %}
+        </div>
         <div class="filter-actions">
             <button type="submit" class="button button-primary">Guardar producto</button>
             <a href="{% url 'inventario:productos_lista' %}" class="button button-secondary">Cancelar</a>
         </div>
     </form>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/inventario/product_image_upload.js' %}" defer></script>
 {% endblock %}

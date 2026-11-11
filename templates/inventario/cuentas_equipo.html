@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Equipo y permisos{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Equipo y permisos</h1>
+        <p>Crea o pausa cuentas del equipo y elige qué puede hacer cada persona.</p>
+    </div>
+    <a href="{% url 'inventario:cuenta_equipo_nueva' %}" class="button button-primary">+ Nueva cuenta</a>
+</section>
+
+<section class="panel">
+    <p class="panel-subtitle">
+        <strong>Administradora:</strong> acceso a todas las funciones de la aplicación.
+        <strong>Asistenta:</strong> consulta el catálogo y registra entradas y salidas.
+        Puedes desactivar una cuenta cuando termine la colaboración.
+    </p>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Rol / grupos</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cuenta in cuentas %}
+                <tr>
+                    <td>{{ cuenta.username }}</td>
+                    <td>{{ cuenta.get_full_name|default:"—" }}</td>
+                    <td>{{ cuenta.email|default:"—" }}</td>
+                    <td>
+                        {% for grupo in cuenta.groups.all %}
+                            {{ grupo.name }}{% if not forloop.last %}, {% endif %}
+                        {% empty %}
+                            Sin grupo
+                        {% endfor %}
+                    </td>
+                    <td>{% if cuenta.is_active %}Activa{% else %}Desactivada{% endif %}</td>
+                    <td class="actions-cell">
+                        <a href="{% url 'inventario:cuenta_equipo_editar' cuenta.pk %}">Editar</a>
+                        <form method="post" action="{% url 'inventario:cuenta_equipo_cambiar_estado' cuenta.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="button-danger-link">
+                                {% if cuenta.is_active %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <strong>No hay cuentas de asistentes</strong>
+                            <p>Crea una cuenta para que una asistente pueda ingresar al sistema.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
